@@ -97,7 +97,7 @@ const LoadingScreen = () => (
 // --- Screens ---
 const AVAILABLE_NICHES = ['Tech', 'Entertainment', 'Sports', 'News', 'Fashion', 'Business', 'Lifestyle', 'Education'];
 
-const RoleSelectionScreen = () => {
+const RoleSelectionScreen = ({ onComplete }: { onComplete: () => void }) => {
   const { user } = useUser();
   const [step, setStep] = useState(1);
   const [role, setRole] = useState<'publisher' | 'advertiser' | null>(null);
@@ -137,6 +137,7 @@ const RoleSelectionScreen = () => {
           targetNiches: selectedNiches
         })
       };
+      onComplete(); // Call this BEFORE setDoc to prevent the jump back
       await setDoc(doc(db, 'users', user.uid), profile);
     } catch (err) {
       console.error(err);
@@ -307,6 +308,7 @@ export default function App() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAuthReady, setIsAuthReady] = useState(false);
+  const [isCreatingProfile, setIsCreatingProfile] = useState(false);
 
   useEffect(() => {
     let unsubscribeProfile: (() => void) | null = null;
@@ -335,9 +337,15 @@ export default function App() {
       }
     });
 
+    // Safety timeout for loading screen
+    const timeout = setTimeout(() => {
+      if (loading) setLoading(false);
+    }, 5000);
+
     return () => {
       unsubscribeAuth();
       if (unsubscribeProfile) unsubscribeProfile();
+      clearTimeout(timeout);
     };
   }, []);
 
@@ -372,6 +380,10 @@ export default function App() {
     await signOut(auth);
   };
 
+  const handleProfileCreated = () => {
+    setIsCreatingProfile(true);
+  };
+
   if (loading) return <LoadingScreen />;
 
   if (!user) return (
@@ -386,11 +398,13 @@ export default function App() {
     </UserContext.Provider>
   );
 
-  if (user && !profile) return (
+  if (user && !profile && !isCreatingProfile) return (
     <UserContext.Provider value={{ user, profile, loading, signIn, logout, isAuthReady, signUpEmail, signInEmail }}>
-      <RoleSelectionScreen />
+      <RoleSelectionScreen onComplete={handleProfileCreated} />
     </UserContext.Provider>
   );
+
+  if (isCreatingProfile && !profile) return <LoadingScreen />;
 
   return (
     <UserContext.Provider value={{ user, profile, loading, signIn, logout, isAuthReady, signUpEmail, signInEmail }}>

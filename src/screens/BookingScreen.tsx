@@ -5,6 +5,7 @@ import { db } from '../firebase';
 import { useUser } from '../App';
 import { ChevronLeft, ShieldCheck, Info, Upload } from 'lucide-react';
 import { formatCurrency } from '../lib/utils';
+import { usePaystackPayment } from 'react-paystack';
 
 export const BookingScreen = () => {
   const { publisherId } = useParams();
@@ -22,12 +23,10 @@ export const BookingScreen = () => {
   useEffect(() => {
     const fetchPublisher = async () => {
       if (!publisherId) return;
-      // In a real app, we'd fetch from Firestore
-      // For now, let's mock or fetch if exists
-      const docRef = doc(db, 'publishers', publisherId);
+      const docRef = doc(db, 'users', publisherId);
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
-        setPublisher(docSnap.data());
+        setPublisher({ id: docSnap.id, ...docSnap.data() });
       } else {
         // Mock for demo if not found
         setPublisher({
@@ -45,40 +44,76 @@ export const BookingScreen = () => {
     fetchPublisher();
   }, [publisherId]);
 
-  const handleBook = async () => {
-    if (!profile || !publisher) return;
+  const totalAmount = publisher ? Math.round(publisher.pricePerPost * 1.05) : 0;
+
+  const config = {
+    reference: (new Date()).getTime().toString(),
+    email: profile?.email || '',
+    amount: totalAmount * 100, // Paystack expects amount in kobo
+    publicKey: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || 'pk_test_placeholder',
+  };
+
+  const initializePayment = usePaystackPayment(config);
+
+  const onSuccess = async (reference: any) => {
     setBookingLoading(true);
     try {
-      const adData = {
-        advertiserId: profile.uid,
-        publisherId: publisher.uid,
-        mediaUrl: mediaUrl || 'https://picsum.photos/seed/ad/800/600',
-        caption,
-        niche: publisher.niches[0],
-        budget: publisher.pricePerPost,
-        status: 'pending',
-        createdAt: new Date().toISOString(),
-        scheduledAt: scheduledAt || new Date().toISOString(),
-      };
-      await addDoc(collection(db, 'ads'), adData);
-      
-      // Create notification for publisher
-      await addDoc(collection(db, 'notifications'), {
-        userId: publisher.uid,
-        type: 'ad_request',
-        message: `${profile.name} wants to book an ad on your TV!`,
-        isRead: false,
-        createdAt: new Date().toISOString(),
+      // Verify payment on backend
+      const verifyRes = await fetch('/api/paystack/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reference: reference.reference }),
       });
+      const verifyData = await verifyRes.json();
 
-      alert('Ad request sent successfully!');
-      navigate('/campaigns');
+      if (verifyData.status && verifyData.data.status === 'success') {
+        const adData = {
+          advertiserId: profile?.uid,
+          publisherId: publisher.uid,
+          mediaUrl: mediaUrl || 'https://picsum.photos/seed/ad/800/600',
+          caption,
+          niche: publisher.niches[0],
+          budget: publisher.pricePerPost,
+          status: 'paid',
+          paymentReference: reference.reference,
+          createdAt: new Date().toISOString(),
+          scheduledAt: scheduledAt || new Date().toISOString(),
+        };
+        await addDoc(collection(db, 'ads'), adData);
+        
+        // Create notification for publisher
+        await addDoc(collection(db, 'notifications'), {
+          userId: publisher.uid,
+          type: 'ad_request',
+          message: `${profile?.name} has paid for an ad on your TV!`,
+          isRead: false,
+          createdAt: new Date().toISOString(),
+        });
+
+        alert('Payment successful and ad booked!');
+        navigate('/campaigns');
+      } else {
+        alert('Payment verification failed. Please contact support.');
+      }
     } catch (err) {
       console.error(err);
-      alert('Failed to book ad. Please try again.');
+      alert('Error verifying payment.');
     } finally {
       setBookingLoading(false);
     }
+  };
+
+  const onClose = () => {
+    console.log('Payment closed');
+  };
+
+  const handleBook = () => {
+    if (!profile || !publisher) return;
+    if (!profile.email) {
+      alert('Please add an email to your profile to make payments.');
+      return;
+    }
+    initializePayment({ onSuccess, onClose });
   };
 
   if (loading) return <div className="p-8 text-center">Loading publisher...</div>;
@@ -96,14 +131,14 @@ export const BookingScreen = () => {
         {/* Publisher Info */}
         <div className="bg-gray-50 p-4 rounded-2xl flex gap-4 items-center">
           <div className="w-16 h-16 bg-[#25D366] rounded-xl flex items-center justify-center text-white font-bold text-2xl">
-            {publisher.channelName[0]}
+            {publisher.channelName ? publisher.channelName[0] : 'T'}
           </div>
           <div>
-            <h2 className="font-bold text-gray-900">{publisher.channelName}</h2>
-            <p className="text-sm text-gray-500">{publisher.audienceSize.toLocaleString()} status views</p>
+            <h2 className="font-bold text-gray-900">{publisher.channelName || 'Unknown TV'}</h2>
+            <p className="text-sm text-gray-500">{(publisher.audienceSize || 0).toLocaleString()} status views</p>
             <div className="flex items-center gap-1 mt-1">
               <span className="text-yellow-400 text-xs">★</span>
-              <span className="text-xs font-bold text-gray-600">{publisher.rating}</span>
+              <span className="text-xs font-bold text-gray-600">{publisher.rating || '4.5'}</span>
             </div>
           </div>
         </div>
@@ -160,7 +195,7 @@ export const BookingScreen = () => {
           <div className="pt-3 border-t border-green-100 flex justify-between items-center">
             <span className="font-bold text-gray-900">Total</span>
             <span className="text-xl font-black text-[#25D366]">
-              {formatCurrency(publisher.pricePerPost * 1.05)}
+              {formatCurrency(totalAmount)}
             </span>
           </div>
         </div>
@@ -177,7 +212,7 @@ export const BookingScreen = () => {
           onClick={handleBook}
           className="w-full bg-[#25D366] text-white font-bold py-4 rounded-2xl shadow-lg shadow-green-100 active:scale-95 transition-all disabled:opacity-50"
         >
-          {bookingLoading ? 'Processing...' : `Pay ${formatCurrency(publisher.pricePerPost * 1.05)}`}
+          {bookingLoading ? 'Processing...' : `Pay ${formatCurrency(totalAmount)}`}
         </button>
       </div>
     </div>
