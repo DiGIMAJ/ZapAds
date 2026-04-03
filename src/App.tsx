@@ -329,6 +329,7 @@ export default function App() {
     return sessionStorage.getItem('zapads_creating_profile') === 'true';
   });
   const creatingRef = React.useRef(isCreatingProfile);
+  const profileRef = React.useRef<UserProfile | null>(null);
 
   const setCreatingState = (val: boolean) => {
     creatingRef.current = val;
@@ -349,12 +350,13 @@ export default function App() {
         unsubscribeProfile = onSnapshot(doc(db, 'users', user.uid), (docSnap) => {
           if (docSnap.exists()) {
             const data = docSnap.data() as UserProfile;
+            profileRef.current = data;
             setProfile(data);
-            // Only stop the "creating" state once we actually have the data in hand
             setCreatingState(false);
           } else {
             // Only clear profile if we aren't currently in the middle of creating one
-            if (!creatingRef.current) {
+            // AND we don't already have a profile in memory (prevents flicker)
+            if (!creatingRef.current && !profileRef.current) {
               setProfile(null);
             }
           }
@@ -366,6 +368,7 @@ export default function App() {
           setIsAuthReady(true);
         });
       } else {
+        profileRef.current = null;
         setProfile(null);
         setCreatingState(false);
         if (unsubscribeProfile) unsubscribeProfile();
@@ -416,6 +419,16 @@ export default function App() {
   const logout = async () => {
     await signOut(auth);
   };
+
+  // Safety unlock for creating state
+  useEffect(() => {
+    if (isCreatingProfile) {
+      const timer = setTimeout(() => {
+        setCreatingState(false);
+      }, 15000);
+      return () => clearTimeout(timer);
+    }
+  }, [isCreatingProfile]);
 
   const handleProfileCreated = () => {
     setCreatingState(true);
