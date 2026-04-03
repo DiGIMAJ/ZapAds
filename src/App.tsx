@@ -43,6 +43,8 @@ interface UserContextType {
   isAuthReady: boolean;
   signUpEmail: (email: string, pass: string) => Promise<void>;
   signInEmail: (email: string, pass: string) => Promise<void>;
+  isCreatingProfile: boolean;
+  setCreatingState: (val: boolean) => void;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
@@ -102,10 +104,17 @@ const LoadingScreen = () => (
 const AVAILABLE_NICHES = ['Tech', 'Entertainment', 'Sports', 'News', 'Fashion', 'Business', 'Lifestyle', 'Education'];
 
 const RoleSelectionScreen = ({ onComplete }: { onComplete: () => void }) => {
-  const { user } = useUser();
+  const { user, profile, setCreatingState } = useUser();
   const [step, setStep] = useState(1);
   const [role, setRole] = useState<'publisher' | 'advertiser' | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // If a profile somehow appears while we're on this screen, just trigger completion
+  useEffect(() => {
+    if (profile) {
+      onComplete();
+    }
+  }, [profile, onComplete]);
 
   // Form State
   const [channelName, setChannelName] = useState('');
@@ -123,8 +132,10 @@ const RoleSelectionScreen = ({ onComplete }: { onComplete: () => void }) => {
   const handleComplete = async () => {
     if (!user || !role) return;
     setLoading(true);
+    setCreatingState(true); // Lock the state immediately
+    
     try {
-      const profile: UserProfile = {
+      const newProfile: UserProfile = {
         uid: user.uid,
         name: user.displayName || 'User',
         email: user.email || '',
@@ -141,10 +152,12 @@ const RoleSelectionScreen = ({ onComplete }: { onComplete: () => void }) => {
           targetNiches: selectedNiches
         })
       };
-      onComplete(); // Call this BEFORE setDoc to prevent the jump back
-      await setDoc(doc(db, 'users', user.uid), profile);
+      
+      onComplete(); 
+      await setDoc(doc(db, 'users', user.uid), newProfile);
     } catch (err) {
-      console.error(err);
+      console.error("Setup error:", err);
+      setCreatingState(false); // Unlock on error so user can try again
     } finally {
       setLoading(false);
     }
@@ -312,8 +325,20 @@ export default function App() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAuthReady, setIsAuthReady] = useState(false);
-  const [isCreatingProfile, setIsCreatingProfile] = useState(false);
-  const creatingRef = React.useRef(false);
+  const [isCreatingProfile, setIsCreatingProfile] = useState(() => {
+    return sessionStorage.getItem('zapads_creating_profile') === 'true';
+  });
+  const creatingRef = React.useRef(isCreatingProfile);
+
+  const setCreatingState = (val: boolean) => {
+    creatingRef.current = val;
+    setIsCreatingProfile(val);
+    if (val) {
+      sessionStorage.setItem('zapads_creating_profile', 'true');
+    } else {
+      sessionStorage.removeItem('zapads_creating_profile');
+    }
+  };
 
   useEffect(() => {
     let unsubscribeProfile: (() => void) | null = null;
@@ -323,9 +348,10 @@ export default function App() {
       if (user) {
         unsubscribeProfile = onSnapshot(doc(db, 'users', user.uid), (docSnap) => {
           if (docSnap.exists()) {
-            setProfile(docSnap.data() as UserProfile);
-            creatingRef.current = false;
-            setIsCreatingProfile(false); 
+            const data = docSnap.data() as UserProfile;
+            setProfile(data);
+            // Only stop the "creating" state once we actually have the data in hand
+            setCreatingState(false);
           } else {
             // Only clear profile if we aren't currently in the middle of creating one
             if (!creatingRef.current) {
@@ -341,8 +367,7 @@ export default function App() {
         });
       } else {
         setProfile(null);
-        creatingRef.current = false;
-        setIsCreatingProfile(false);
+        setCreatingState(false);
         if (unsubscribeProfile) unsubscribeProfile();
         setLoading(false);
         setIsAuthReady(true);
@@ -393,14 +418,26 @@ export default function App() {
   };
 
   const handleProfileCreated = () => {
-    creatingRef.current = true;
-    setIsCreatingProfile(true);
+    setCreatingState(true);
   };
 
   if (loading) return <LoadingScreen />;
 
+  const contextValue: UserContextType = { 
+    user, 
+    profile, 
+    loading, 
+    signIn, 
+    logout, 
+    isAuthReady, 
+    signUpEmail, 
+    signInEmail,
+    isCreatingProfile,
+    setCreatingState
+  };
+
   if (!user) return (
-    <UserContext.Provider value={{ user, profile, loading, signIn, logout, isAuthReady, signUpEmail, signInEmail }}>
+    <UserContext.Provider value={contextValue}>
       <Router>
         <Routes>
           <Route path="/" element={<LandingPage onGetStarted={signIn} onEmailSignUp={signUpEmail} onEmailSignIn={signInEmail} />} />
@@ -411,18 +448,9 @@ export default function App() {
     </UserContext.Provider>
   );
 
-  // If we have a user but no profile, and we aren't currently in the "creating" transition
-  if (!profile && !isCreatingProfile) return (
-    <UserContext.Provider value={{ user, profile, loading, signIn, logout, isAuthReady, signUpEmail, signInEmail }}>
-      <RoleSelectionScreen onComplete={handleProfileCreated} />
-    </UserContext.Provider>
-  );
-
-  // Show a minimal loading state ONLY during the actual profile creation transition
-  if (!profile && isCreatingProfile) return <LoadingScreen />;
-
-  return (
-    <UserContext.Provider value={{ user, profile, loading, signIn, logout, isAuthReady, signUpEmail, signInEmail }}>
+  // PRIORITY 1: If we have a profile, show the dashboard immediately
+  if (profile) return (
+    <UserContext.Provider value={contextValue}>
       <Router>
         <div className="min-h-screen bg-gray-50 pb-20 font-sans relative">
           <Routes>
@@ -451,6 +479,16 @@ export default function App() {
           </a>
         </div>
       </Router>
+    </UserContext.Provider>
+  );
+  
+  // PRIORITY 2: If we are in the middle of creating a profile, show loading
+  if (isCreatingProfile) return <LoadingScreen />;
+
+  // PRIORITY 3: If no profile exists and we aren't creating one, show role selection
+  return (
+    <UserContext.Provider value={contextValue}>
+      <RoleSelectionScreen onComplete={handleProfileCreated} />
     </UserContext.Provider>
   );
 }
