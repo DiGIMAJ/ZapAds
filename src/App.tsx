@@ -323,6 +323,7 @@ export default function App() {
         unsubscribeProfile = onSnapshot(doc(db, 'users', user.uid), (docSnap) => {
           if (docSnap.exists()) {
             setProfile(docSnap.data() as UserProfile);
+            setIsCreatingProfile(false); // Reset this as soon as we have a profile
           } else {
             setProfile(null);
           }
@@ -335,6 +336,7 @@ export default function App() {
         });
       } else {
         setProfile(null);
+        setIsCreatingProfile(false);
         if (unsubscribeProfile) unsubscribeProfile();
         setLoading(false);
         setIsAuthReady(true);
@@ -402,13 +404,15 @@ export default function App() {
     </UserContext.Provider>
   );
 
-  if (user && !profile && !isCreatingProfile) return (
+  // If we have a user but no profile, and we aren't currently in the "creating" transition
+  if (!profile && !isCreatingProfile) return (
     <UserContext.Provider value={{ user, profile, loading, signIn, logout, isAuthReady, signUpEmail, signInEmail }}>
       <RoleSelectionScreen onComplete={handleProfileCreated} />
     </UserContext.Provider>
   );
 
-  if (isCreatingProfile && !profile) return <LoadingScreen />;
+  // Show a minimal loading state ONLY during the actual profile creation transition
+  if (!profile && isCreatingProfile) return <LoadingScreen />;
 
   return (
     <UserContext.Provider value={{ user, profile, loading, signIn, logout, isAuthReady, signUpEmail, signInEmail }}>
