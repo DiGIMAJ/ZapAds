@@ -313,6 +313,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [isCreatingProfile, setIsCreatingProfile] = useState(false);
+  const creatingRef = React.useRef(false);
 
   useEffect(() => {
     let unsubscribeProfile: (() => void) | null = null;
@@ -323,9 +324,13 @@ export default function App() {
         unsubscribeProfile = onSnapshot(doc(db, 'users', user.uid), (docSnap) => {
           if (docSnap.exists()) {
             setProfile(docSnap.data() as UserProfile);
-            setIsCreatingProfile(false); // Reset this as soon as we have a profile
+            creatingRef.current = false;
+            setIsCreatingProfile(false); 
           } else {
-            setProfile(null);
+            // Only clear profile if we aren't currently in the middle of creating one
+            if (!creatingRef.current) {
+              setProfile(null);
+            }
           }
           setLoading(false);
           setIsAuthReady(true);
@@ -336,6 +341,7 @@ export default function App() {
         });
       } else {
         setProfile(null);
+        creatingRef.current = false;
         setIsCreatingProfile(false);
         if (unsubscribeProfile) unsubscribeProfile();
         setLoading(false);
@@ -387,6 +393,7 @@ export default function App() {
   };
 
   const handleProfileCreated = () => {
+    creatingRef.current = true;
     setIsCreatingProfile(true);
   };
 
