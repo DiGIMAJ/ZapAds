@@ -217,25 +217,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onEmailS
         </div>
       </section>
 
-      {/* Stats Section */}
-      <section className="py-16 border-y border-white/10 bg-white/[0.02]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-            {[
-              { label: 'Active TVs', value: '2,500+' },
-              { label: 'Daily Views', value: '1.2M+' },
-              { label: 'Ads Posted', value: '45k+' },
-              { label: 'Payouts', value: '₦150M+' },
-            ].map((stat, i) => (
-              <div key={i} className="text-center">
-                <p className="text-4xl md:text-5xl font-black text-white mb-2 tracking-tighter">{stat.value}</p>
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">{stat.label}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* Features Section */}
       <section id="features" className="py-32 lg:py-48 relative">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
