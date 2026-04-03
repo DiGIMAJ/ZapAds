@@ -1,0 +1,109 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Core user profile for both publishers and advertisers",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "name": { "type": "string", "description": "Full name" },
+        "email": { "type": "string", "format": "email", "description": "User email" },
+        "role": { "type": "string", "enum": ["publisher", "advertiser", "admin"], "description": "User role" },
+        "phone": { "type": "string", "description": "WhatsApp phone number" },
+        "photoURL": { "type": "string", "description": "Profile picture URL" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Account creation timestamp" }
+      },
+      "required": ["uid", "name", "email", "role"]
+    },
+    "Publisher": {
+      "title": "Publisher",
+      "description": "Extended profile for WhatsApp TV owners",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "User ID" },
+        "channelName": { "type": "string", "description": "Name of the WhatsApp TV" },
+        "niches": { "type": "array", "items": { "type": "string" }, "description": "Content niches (e.g., Entertainment, Tech)" },
+        "audienceSize": { "type": "number", "description": "Estimated status views" },
+        "pricePerPost": { "type": "number", "description": "Cost for a single ad post" },
+        "isOnline": { "type": "boolean", "description": "Real-time availability status" },
+        "isVerified": { "type": "boolean", "description": "Platform verification status" },
+        "rating": { "type": "number", "description": "Average rating" },
+        "reviewCount": { "type": "number", "description": "Total number of reviews" },
+        "proofOfAudience": { "type": "string", "description": "URL to screenshot of status views" }
+      },
+      "required": ["uid", "channelName", "pricePerPost"]
+    },
+    "Ad": {
+      "title": "Ad",
+      "description": "An advertisement campaign request",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Ad ID" },
+        "advertiserId": { "type": "string", "description": "UID of the advertiser" },
+        "publisherId": { "type": "string", "description": "UID of the targeted publisher" },
+        "mediaUrl": { "type": "string", "description": "URL of the ad image/video" },
+        "caption": { "type": "string", "description": "Ad text content" },
+        "niche": { "type": "string", "description": "Target niche" },
+        "budget": { "type": "number", "description": "Total payment for this ad" },
+        "status": { "type": "string", "enum": ["pending", "accepted", "posted", "completed", "declined", "cancelled"], "description": "Current ad status" },
+        "proofUrl": { "type": "string", "description": "URL of the proof screenshot uploaded by publisher" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" },
+        "scheduledAt": { "type": "string", "format": "date-time", "description": "When the ad should be posted" }
+      },
+      "required": ["advertiserId", "publisherId", "mediaUrl", "budget", "status"]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "Financial record of ad payments",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Transaction ID" },
+        "adId": { "type": "string", "description": "Related Ad ID" },
+        "amount": { "type": "number", "description": "Transaction amount" },
+        "status": { "type": "string", "enum": ["escrow", "released", "refunded", "failed"], "description": "Payment status" },
+        "advertiserId": { "type": "string", "description": "UID of payer" },
+        "publisherId": { "type": "string", "description": "UID of payee" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Transaction timestamp" }
+      },
+      "required": ["adId", "amount", "status", "advertiserId", "publisherId"]
+    },
+    "Review": {
+      "title": "Review",
+      "description": "Feedback from advertiser to publisher",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Review ID" },
+        "adId": { "type": "string", "description": "Related Ad ID" },
+        "publisherId": { "type": "string", "description": "Target publisher UID" },
+        "advertiserId": { "type": "string", "description": "Reviewer UID" },
+        "rating": { "type": "number", "description": "Rating (1-5)" },
+        "comment": { "type": "string", "description": "Review text" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Review timestamp" }
+      },
+      "required": ["adId", "publisherId", "advertiserId", "rating"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "In-app alerts for users",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Notification ID" },
+        "userId": { "type": "string", "description": "Target user UID" },
+        "type": { "type": "string", "enum": ["ad_request", "ad_accepted", "ad_posted", "payment_received", "new_review"], "description": "Type of alert" },
+        "message": { "type": "string", "description": "Notification text" },
+        "isRead": { "type": "boolean", "description": "Read status" },
+        "relatedId": { "type": "string", "description": "ID of related ad/transaction" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp" }
+      },
+      "required": ["userId", "type", "message", "isRead"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": { "schema": "User", "description": "User profiles" },
+    "/publishers/{uid}": { "schema": "Publisher", "description": "Publisher details" },
+    "/ads/{adId}": { "schema": "Ad", "description": "Ad campaigns" },
+    "/transactions/{txnId}": { "schema": "Transaction", "description": "Payment records" },
+    "/reviews/{reviewId}": { "schema": "Review", "description": "Publisher reviews" },
+    "/notifications/{notifId}": { "schema": "Notification", "description": "User notifications" }
+  }
+}
