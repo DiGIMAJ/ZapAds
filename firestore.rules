@@ -12,15 +12,24 @@ service cloud.firestore {
     //   - uid: string (required) - Firebase Auth UID
     //   - name: string (required) - Full name
     //   - email: string (required, email format) - User email
-    //   - role: string (required, enum: ['publisher', 'advertiser', 'admin']) - User role
+    //   - role: string (required, enum: ['publisher', 'advertiser', 'both', 'admin']) - User role
     //   - phone: string (optional) - WhatsApp phone number
     //   - photoURL: string (optional) - Profile picture URL
     //   - createdAt: string (required, date-time) - Account creation timestamp
+    //   - channelName: string (optional) - Name of the WhatsApp TV
+    //   - niches: list (optional) - Content niches
+    //   - audienceSize: number (optional) - Estimated status views
+    //   - pricePerPost: number (optional) - Cost for a single ad post
+    //   - brandName: string (optional) - Brand / Company name
+    //   - targetNiches: list (optional) - Target niches for ads
     //
-    // Collection: publishers
+    // Collection: public_profiles
     // Document ID: {uid}
     // Fields:
     //   - uid: string (required) - User ID
+    //   - name: string (required) - Full name
+    //   - photoURL: string (optional) - Profile picture URL
+    //   - role: string (required) - User role
     //   - channelName: string (required) - Name of the WhatsApp TV
     //   - niches: list (required) - Content niches
     //   - audienceSize: number (required) - Estimated status views
@@ -29,7 +38,6 @@ service cloud.firestore {
     //   - isVerified: bool (required) - Platform verification status
     //   - rating: number (optional) - Average rating
     //   - reviewCount: number (optional) - Total number of reviews
-    //   - proofOfAudience: string (optional) - URL to screenshot of status views
     //
     // Collection: ads
     // Document ID: {adId}
@@ -124,17 +132,19 @@ service cloud.firestore {
     // ===============================================================
 
     function isValidUser(data) {
-      return hasOnlyAllowedFields(['uid', 'name', 'email', 'role', 'phone', 'photoURL', 'createdAt']) &&
+      return hasOnlyAllowedFields(['uid', 'name', 'email', 'role', 'phone', 'photoURL', 'createdAt', 'channelName', 'niches', 'audienceSize', 'pricePerPost', 'brandName', 'targetNiches', 'isOnline', 'isVerified']) &&
              data.uid is string && data.uid.size() > 0 &&
              data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
              isValidEmail(data.email) &&
-             data.role in ['publisher', 'advertiser', 'admin'] &&
+             data.role in ['publisher', 'advertiser', 'both', 'admin'] &&
              isValidDateString(data.createdAt);
     }
 
-    function isValidPublisher(data) {
-      return hasOnlyAllowedFields(['uid', 'channelName', 'niches', 'audienceSize', 'pricePerPost', 'isOnline', 'isVerified', 'rating', 'reviewCount', 'proofOfAudience']) &&
+    function isValidPublicProfile(data) {
+      return hasOnlyAllowedFields(['uid', 'name', 'photoURL', 'role', 'channelName', 'niches', 'audienceSize', 'pricePerPost', 'isOnline', 'isVerified', 'rating', 'reviewCount', 'createdAt']) &&
              data.uid is string &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.role in ['publisher', 'both'] &&
              data.channelName is string && data.channelName.size() > 0 && data.channelName.size() < 100 &&
              data.niches is list && data.niches.size() <= 10 &&
              data.audienceSize is number && data.audienceSize >= 0 &&
@@ -142,8 +152,7 @@ service cloud.firestore {
              data.isOnline is bool &&
              data.isVerified is bool &&
              (!('rating' in data) || (data.rating is number && data.rating >= 0 && data.rating <= 5)) &&
-             (!('reviewCount' in data) || (data.reviewCount is number && data.reviewCount >= 0)) &&
-             (!('proofOfAudience' in data) || isValidUrl(data.proofOfAudience));
+             (!('reviewCount' in data) || (data.reviewCount is number && data.reviewCount >= 0));
     }
 
     function isValidAd(data) {
@@ -199,15 +208,15 @@ service cloud.firestore {
     // ===============================================================
 
     match /users/{uid} {
-      allow read: if isAuthenticated();
+      allow read: if isOwner(uid) || isAdmin();
       allow create: if isOwner(uid) && isValidUser(request.resource.data) && (request.resource.data.role != 'admin' || isAdmin());
       allow update: if isOwner(uid) && isValidUser(request.resource.data) && areImmutableFieldsUnchanged(['uid', 'createdAt']) && (request.resource.data.role == resource.data.role || isAdmin());
     }
 
-    match /publishers/{uid} {
-      allow read: if true; // Public profiles for matching
-      allow create: if isOwner(uid) && isValidPublisher(request.resource.data);
-      allow update: if (isOwner(uid) && isValidPublisher(request.resource.data) && areImmutableFieldsUnchanged(['uid'])) || isAdmin();
+    match /public_profiles/{uid} {
+      allow read: if true; // Public profiles for discovery
+      allow create: if isOwner(uid) && isValidPublicProfile(request.resource.data);
+      allow update: if (isOwner(uid) && isValidPublicProfile(request.resource.data) && areImmutableFieldsUnchanged(['uid'])) || isAdmin();
     }
 
     match /ads/{adId} {

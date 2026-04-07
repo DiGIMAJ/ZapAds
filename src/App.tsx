@@ -3,7 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, Link, useLocation, us
 import { onAuthStateChanged, User as FirebaseUser, signInWithPopup, GoogleAuthProvider, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc, onSnapshot, collection, getDocs, query, where } from 'firebase/firestore';
 import { auth, db } from './firebase';
-import { Home, MessageSquare, PlusSquare, User, Bell, ShieldCheck, TrendingUp, ChevronLeft, CheckCircle2, Zap, Users } from 'lucide-react';
+import { Home, MessageSquare, PlusSquare, User, Bell, ShieldCheck, TrendingUp, ChevronLeft, CheckCircle2, Zap, Users, Search } from 'lucide-react';
 import { cn } from './lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -21,7 +21,7 @@ interface UserProfile {
   uid: string;
   name: string;
   email: string;
-  role: 'publisher' | 'advertiser' | 'admin';
+  role: 'publisher' | 'advertiser' | 'both' | 'admin';
   phone?: string;
   photoURL?: string;
   createdAt: string;
@@ -45,6 +45,8 @@ interface UserContextType {
   signInEmail: (email: string, pass: string) => Promise<void>;
   isCreatingProfile: boolean;
   setCreatingState: (val: boolean) => void;
+  activeRole: 'publisher' | 'advertiser' | null;
+  setActiveRole: (role: 'publisher' | 'advertiser') => void;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
@@ -106,7 +108,7 @@ const AVAILABLE_NICHES = ['Tech', 'Entertainment', 'Sports', 'News', 'Fashion', 
 const RoleSelectionScreen = ({ onComplete }: { onComplete: () => void }) => {
   const { user, profile, setCreatingState } = useUser();
   const [step, setStep] = useState(1);
-  const [role, setRole] = useState<'publisher' | 'advertiser' | null>(null);
+  const [role, setRole] = useState<'publisher' | 'advertiser' | 'both' | null>(null);
   const [loading, setLoading] = useState(false);
 
   // If a profile somehow appears while we're on this screen, just trigger completion
@@ -122,11 +124,18 @@ const RoleSelectionScreen = ({ onComplete }: { onComplete: () => void }) => {
   const [pricePerPost, setPricePerPost] = useState('');
   const [brandName, setBrandName] = useState('');
   const [selectedNiches, setSelectedNiches] = useState<string[]>([]);
+  const [targetNiches, setTargetNiches] = useState<string[]>([]);
 
-  const toggleNiche = (niche: string) => {
-    setSelectedNiches(prev => 
-      prev.includes(niche) ? prev.filter(n => n !== niche) : [...prev, niche]
-    );
+  const toggleNiche = (niche: string, type: 'publisher' | 'advertiser') => {
+    if (type === 'publisher') {
+      setSelectedNiches(prev => 
+        prev.includes(niche) ? prev.filter(n => n !== niche) : [...prev, niche]
+      );
+    } else {
+      setTargetNiches(prev => 
+        prev.includes(niche) ? prev.filter(n => n !== niche) : [...prev, niche]
+      );
+    }
   };
 
   const handleComplete = async () => {
@@ -147,19 +156,65 @@ const RoleSelectionScreen = ({ onComplete }: { onComplete: () => void }) => {
           audienceSize: parseInt(audienceSize) || 0,
           pricePerPost: parseInt(pricePerPost) || 0,
           niches: selectedNiches
-        } : {
+        } : role === 'advertiser' ? {
           brandName,
-          targetNiches: selectedNiches
+          targetNiches: targetNiches
+        } : {
+          // Both
+          channelName,
+          audienceSize: parseInt(audienceSize) || 0,
+          pricePerPost: parseInt(pricePerPost) || 0,
+          niches: selectedNiches,
+          brandName,
+          targetNiches: targetNiches
         })
       };
       
       onComplete(); 
       await setDoc(doc(db, 'users', user.uid), newProfile);
+
+      // Create public profile for discovery if user is a publisher or both
+      if (role === 'publisher' || role === 'both') {
+        const publicProfile = {
+          uid: user.uid,
+          name: newProfile.name,
+          photoURL: newProfile.photoURL || '',
+          role: role,
+          channelName: newProfile.channelName || '',
+          niches: newProfile.niches || [],
+          audienceSize: newProfile.audienceSize || 0,
+          pricePerPost: newProfile.pricePerPost || 0,
+          isOnline: true,
+          isVerified: false,
+          rating: 4.5,
+          reviewCount: 0,
+          createdAt: newProfile.createdAt
+        };
+        await setDoc(doc(db, 'public_profiles', user.uid), publicProfile);
+      }
     } catch (err) {
       console.error("Setup error:", err);
       setCreatingState(false); // Unlock on error so user can try again
     } finally {
       setLoading(false);
+    }
+  };
+
+  const isStep2Valid = () => {
+    if (role === 'publisher') return channelName && audienceSize && pricePerPost && selectedNiches.length > 0;
+    if (role === 'advertiser') return brandName && targetNiches.length > 0;
+    if (role === 'both') {
+      if (step === 2) return channelName && audienceSize && pricePerPost && selectedNiches.length > 0;
+      if (step === 3) return brandName && targetNiches.length > 0;
+    }
+    return false;
+  };
+
+  const handleNext = () => {
+    if (role === 'both' && step === 2) {
+      setStep(3);
+    } else {
+      handleComplete();
     }
   };
 
@@ -207,6 +262,21 @@ const RoleSelectionScreen = ({ onComplete }: { onComplete: () => void }) => {
                 <h3 className="font-black text-xl text-gray-900">I'm a Publisher</h3>
                 <p className="text-sm text-gray-500 mt-1 font-medium">I own a WhatsApp TV and want to sell ad space</p>
               </button>
+
+              <button
+                onClick={() => setRole('both')}
+                className={cn(
+                  "w-full p-6 rounded-[2rem] border-2 text-left transition-all relative overflow-hidden",
+                  role === 'both' ? "border-[#25D366] bg-green-50 shadow-lg shadow-green-100" : "border-gray-100 bg-white hover:border-gray-200"
+                )}
+              >
+                {role === 'both' && <CheckCircle2 className="absolute top-6 right-6 text-[#25D366]" size={24} />}
+                <div className={cn("w-14 h-14 rounded-2xl flex items-center justify-center mb-4 transition-colors", role === 'both' ? "bg-[#25D366] text-white" : "bg-gray-100 text-gray-400")}>
+                  <Zap size={28} />
+                </div>
+                <h3 className="font-black text-xl text-gray-900">I'm Both</h3>
+                <p className="text-sm text-gray-500 mt-1 font-medium">I want to book ads and sell ad space</p>
+              </button>
             </div>
 
             <button
@@ -219,22 +289,22 @@ const RoleSelectionScreen = ({ onComplete }: { onComplete: () => void }) => {
           </motion.div>
         ) : (
           <motion.div 
-            key="step2"
+            key={step === 2 ? "step2" : "step3"}
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 20 }}
             className="flex-1 flex flex-col"
           >
-            <button onClick={() => setStep(1)} className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm mb-6 mt-4">
+            <button onClick={() => setStep(prev => prev - 1)} className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm mb-6 mt-4">
               <ChevronLeft size={20} />
             </button>
             <h2 className="text-3xl font-black text-gray-900 mb-2 tracking-tight">
-              {role === 'publisher' ? 'Setup your TV' : 'Setup your Brand'}
+              {step === 2 ? (role === 'advertiser' ? 'Setup your Brand' : 'Setup your TV') : 'Setup your Brand'}
             </h2>
             <p className="text-gray-500 mb-8 font-medium">This helps us match you with the best opportunities.</p>
 
             <div className="space-y-6 flex-1">
-              {role === 'publisher' ? (
+              {(step === 2 && (role === 'publisher' || role === 'both')) ? (
                 <>
                   <div className="space-y-2">
                     <label className="text-xs font-bold uppercase tracking-wider text-gray-400 ml-1">WhatsApp TV Name</label>
@@ -268,49 +338,67 @@ const RoleSelectionScreen = ({ onComplete }: { onComplete: () => void }) => {
                       />
                     </div>
                   </div>
+                  <div className="space-y-3">
+                    <label className="text-xs font-bold uppercase tracking-wider text-gray-400 ml-1">Your Niches</label>
+                    <div className="flex flex-wrap gap-2">
+                      {AVAILABLE_NICHES.map(niche => (
+                        <button
+                          key={niche}
+                          onClick={() => toggleNiche(niche, 'publisher')}
+                          className={cn(
+                            "px-4 py-2 rounded-full text-sm font-bold transition-all border-2",
+                            selectedNiches.includes(niche) 
+                              ? "bg-[#25D366] text-white border-[#25D366] shadow-md shadow-green-100" 
+                              : "bg-white text-gray-500 border-gray-100 hover:border-gray-200"
+                          )}
+                        >
+                          {niche}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </>
               ) : (
-                <div className="space-y-2">
-                  <label className="text-xs font-bold uppercase tracking-wider text-gray-400 ml-1">Brand / Company Name</label>
-                  <input 
-                    type="text" 
-                    value={brandName}
-                    onChange={(e) => setBrandName(e.target.value)}
-                    placeholder="e.g. Zap Sneakers"
-                    className="w-full bg-white border-2 border-gray-100 focus:border-[#25D366] rounded-2xl p-4 outline-none transition-all font-medium"
-                  />
-                </div>
+                <>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase tracking-wider text-gray-400 ml-1">Brand / Company Name</label>
+                    <input 
+                      type="text" 
+                      value={brandName}
+                      onChange={(e) => setBrandName(e.target.value)}
+                      placeholder="e.g. Zap Sneakers"
+                      className="w-full bg-white border-2 border-gray-100 focus:border-[#25D366] rounded-2xl p-4 outline-none transition-all font-medium"
+                    />
+                  </div>
+                  <div className="space-y-3">
+                    <label className="text-xs font-bold uppercase tracking-wider text-gray-400 ml-1">Target Niches</label>
+                    <div className="flex flex-wrap gap-2">
+                      {AVAILABLE_NICHES.map(niche => (
+                        <button
+                          key={niche}
+                          onClick={() => toggleNiche(niche, 'advertiser')}
+                          className={cn(
+                            "px-4 py-2 rounded-full text-sm font-bold transition-all border-2",
+                            targetNiches.includes(niche) 
+                              ? "bg-[#25D366] text-white border-[#25D366] shadow-md shadow-green-100" 
+                              : "bg-white text-gray-500 border-gray-100 hover:border-gray-200"
+                          )}
+                        >
+                          {niche}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
               )}
-
-              <div className="space-y-3">
-                <label className="text-xs font-bold uppercase tracking-wider text-gray-400 ml-1">
-                  {role === 'publisher' ? 'Your Niches' : 'Target Niches'}
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {AVAILABLE_NICHES.map(niche => (
-                    <button
-                      key={niche}
-                      onClick={() => toggleNiche(niche)}
-                      className={cn(
-                        "px-4 py-2 rounded-full text-sm font-bold transition-all border-2",
-                        selectedNiches.includes(niche) 
-                          ? "bg-[#25D366] text-white border-[#25D366] shadow-md shadow-green-100" 
-                          : "bg-white text-gray-500 border-gray-100 hover:border-gray-200"
-                      )}
-                    >
-                      {niche}
-                    </button>
-                  ))}
-                </div>
-              </div>
             </div>
 
             <button
-              disabled={loading || (role === 'publisher' ? (!channelName || !audienceSize || !pricePerPost) : !brandName)}
-              onClick={handleComplete}
+              disabled={loading || !isStep2Valid()}
+              onClick={handleNext}
               className="w-full bg-[#25D366] text-white font-black text-lg py-5 rounded-2xl shadow-xl shadow-green-100 disabled:opacity-50 mt-8 active:scale-95 transition-all"
             >
-              {loading ? 'Creating Account...' : 'Complete Setup'}
+              {loading ? 'Creating Account...' : (role === 'both' && step === 2 ? 'Next: Setup Brand' : 'Complete Setup')}
             </button>
           </motion.div>
         )}
@@ -325,11 +413,22 @@ export default function App() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAuthReady, setIsAuthReady] = useState(false);
+  const [activeRole, setActiveRole] = useState<'publisher' | 'advertiser' | null>(null);
   const [isCreatingProfile, setIsCreatingProfile] = useState(() => {
     return sessionStorage.getItem('zapads_creating_profile') === 'true';
   });
   const creatingRef = React.useRef(isCreatingProfile);
   const profileRef = React.useRef<UserProfile | null>(null);
+
+  useEffect(() => {
+    if (profile) {
+      if (profile.role === 'both') {
+        if (!activeRole) setActiveRole('advertiser');
+      } else if (profile.role !== 'admin') {
+        setActiveRole(profile.role as 'publisher' | 'advertiser');
+      }
+    }
+  }, [profile]);
 
   const setCreatingState = (val: boolean) => {
     creatingRef.current = val;
@@ -446,7 +545,9 @@ export default function App() {
     signUpEmail, 
     signInEmail,
     isCreatingProfile,
-    setCreatingState
+    setCreatingState,
+    activeRole,
+    setActiveRole
   };
 
   if (!user) return (
@@ -509,7 +610,7 @@ export default function App() {
 // --- Screen Implementations ---
 
 const HomeScreen = () => {
-  const { profile } = useUser();
+  const { profile, activeRole, setActiveRole } = useUser();
   return (
     <div className="p-4">
       <header className="flex justify-between items-center mb-6 pt-4">
@@ -517,15 +618,25 @@ const HomeScreen = () => {
           <h1 className="text-2xl font-black text-gray-900 tracking-tight">Hello, {profile?.name.split(' ')[0]}</h1>
           <p className="text-gray-500 text-sm font-medium">Ready to grow your reach?</p>
         </div>
-        <div className="relative">
-          <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm border border-gray-100">
-            <Bell className="text-gray-600" size={20} />
+        <div className="flex items-center gap-3">
+          {profile?.role === 'both' && (
+            <button 
+              onClick={() => setActiveRole(activeRole === 'publisher' ? 'advertiser' : 'publisher')}
+              className="bg-white border-2 border-gray-100 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider text-[#25D366] shadow-sm active:scale-95 transition-all"
+            >
+              Switch to {activeRole === 'publisher' ? 'Advertiser' : 'Publisher'}
+            </button>
+          )}
+          <div className="relative">
+            <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm border border-gray-100">
+              <Bell className="text-gray-600" size={20} />
+            </div>
+            <span className="absolute top-0 right-0 w-3 h-3 bg-red-500 border-2 border-gray-50 rounded-full"></span>
           </div>
-          <span className="absolute top-0 right-0 w-3 h-3 bg-red-500 border-2 border-gray-50 rounded-full"></span>
         </div>
       </header>
 
-      {profile?.role === 'advertiser' ? <AdvertiserHome /> : <PublisherHome />}
+      {activeRole === 'advertiser' ? <AdvertiserHome /> : <PublisherHome />}
     </div>
   );
 };
@@ -534,11 +645,14 @@ const AdvertiserHome = () => {
   const { profile } = useUser();
   const [publishers, setPublishers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedFilterNiche, setSelectedFilterNiche] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<'recommended' | 'price-asc' | 'price-desc' | 'audience'>('recommended');
 
   useEffect(() => {
     const fetchPublishers = async () => {
       try {
-        const q = query(collection(db, 'users'), where('role', '==', 'publisher'));
+        const q = query(collection(db, 'public_profiles'), where('role', 'in', ['publisher', 'both']));
         const querySnapshot = await getDocs(q);
         let fetchedPubs: any[] = [];
         querySnapshot.forEach((doc) => {
@@ -560,6 +674,8 @@ const AdvertiserHome = () => {
             { id: '1', channelName: 'Naija Tech TV', niches: ['Tech', 'News'], audienceSize: 15000, pricePerPost: 5000, rating: 4.8, isOnline: true },
             { id: '2', channelName: 'Gossip Mill', niches: ['Entertainment'], audienceSize: 50000, pricePerPost: 15000, rating: 4.5, isOnline: true },
             { id: '3', channelName: 'Sports Hub', niches: ['Sports'], audienceSize: 8000, pricePerPost: 3000, rating: 4.2, isOnline: false },
+            { id: '4', channelName: 'Fashion Forward', niches: ['Fashion', 'Lifestyle'], audienceSize: 12000, pricePerPost: 4500, rating: 4.7, isOnline: true },
+            { id: '5', channelName: 'Business Daily', niches: ['Business', 'News'], audienceSize: 25000, pricePerPost: 8000, rating: 4.9, isOnline: true },
           ];
         }
 
@@ -574,8 +690,69 @@ const AdvertiserHome = () => {
     fetchPublishers();
   }, [profile]);
 
+  const filteredPublishers = publishers.filter(pub => {
+    const matchesSearch = pub.channelName?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                         pub.niches?.some((n: string) => n.toLowerCase().includes(searchQuery.toLowerCase()));
+    const matchesNiche = !selectedFilterNiche || pub.niches?.includes(selectedFilterNiche);
+    return matchesSearch && matchesNiche;
+  });
+
+  const sortedPublishers = [...filteredPublishers].sort((a, b) => {
+    if (sortBy === 'price-asc') return (a.pricePerPost || 0) - (b.pricePerPost || 0);
+    if (sortBy === 'price-desc') return (b.pricePerPost || 0) - (a.pricePerPost || 0);
+    if (sortBy === 'audience') return (b.audienceSize || 0) - (a.audienceSize || 0);
+    
+    // Default: Recommended (already sorted by niche match in useEffect, but we can re-verify here)
+    const aMatches = a.niches?.filter((n: string) => profile?.targetNiches?.includes(n)).length || 0;
+    const bMatches = b.niches?.filter((n: string) => profile?.targetNiches?.includes(n)).length || 0;
+    return bMatches - aMatches;
+  });
+
   return (
     <div className="space-y-8">
+      {/* Search Bar */}
+      <div className="relative group">
+        <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
+          <Search className="text-gray-400 group-focus-within:text-[#25D366] transition-colors" size={20} />
+        </div>
+        <input 
+          type="text"
+          placeholder="Search TVs by name or niche..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="w-full bg-white border-2 border-gray-100 focus:border-[#25D366] rounded-2xl py-4 pl-12 pr-4 outline-none transition-all font-medium shadow-sm"
+        />
+      </div>
+
+      {/* Niche Chips */}
+      <div className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1 scrollbar-hide">
+        <button
+          onClick={() => setSelectedFilterNiche(null)}
+          className={cn(
+            "px-5 py-2.5 rounded-full text-sm font-bold whitespace-nowrap transition-all border-2",
+            selectedFilterNiche === null 
+              ? "bg-[#25D366] text-white border-[#25D366] shadow-md shadow-green-100" 
+              : "bg-white text-gray-500 border-gray-100 hover:border-gray-200"
+          )}
+        >
+          All TVs
+        </button>
+        {AVAILABLE_NICHES.map(niche => (
+          <button
+            key={niche}
+            onClick={() => setSelectedFilterNiche(niche)}
+            className={cn(
+              "px-5 py-2.5 rounded-full text-sm font-bold whitespace-nowrap transition-all border-2",
+              selectedFilterNiche === niche 
+                ? "bg-[#25D366] text-white border-[#25D366] shadow-md shadow-green-100" 
+                : "bg-white text-gray-500 border-gray-100 hover:border-gray-200"
+            )}
+          >
+            {niche}
+          </button>
+        ))}
+      </div>
+
       <div className="bg-[#25D366] p-8 rounded-[2rem] text-white shadow-xl shadow-green-100 relative overflow-hidden">
         <div className="relative z-10">
           <h2 className="text-2xl font-black mb-2 tracking-tight">Book an Ad</h2>
@@ -590,14 +767,27 @@ const AdvertiserHome = () => {
       <div>
         <div className="flex justify-between items-center mb-4 px-1">
           <h3 className="font-black text-xl text-gray-900 tracking-tight">Recommended for You</h3>
-          <button className="text-[#25D366] text-sm font-bold">See All</button>
+          <select 
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as any)}
+            className="text-sm font-bold text-[#25D366] bg-transparent border-none focus:ring-0 cursor-pointer outline-none"
+          >
+            <option value="recommended">Sort: Recommended</option>
+            <option value="price-asc">Price: Low to High</option>
+            <option value="price-desc">Price: High to Low</option>
+            <option value="audience">Audience: Largest</option>
+          </select>
         </div>
         
         {loading ? (
           <div className="text-center py-8 text-gray-500 font-medium">Loading publishers...</div>
+        ) : sortedPublishers.length === 0 ? (
+          <div className="text-center py-12 bg-white rounded-[2rem] border-2 border-dashed border-gray-100">
+            <p className="text-gray-400 font-medium">No publishers found matching your search.</p>
+          </div>
         ) : (
           <div className="space-y-4">
-            {publishers.map((pub) => {
+            {sortedPublishers.map((pub) => {
               // Calculate match percentage if target niches exist
               let matchPercentage = 0;
               if (profile?.targetNiches && profile.targetNiches.length > 0 && pub.niches) {
@@ -652,7 +842,25 @@ const AdvertiserHome = () => {
 };
 
 const PublisherHome = () => {
-  const [isOnline, setIsOnline] = useState(true);
+  const { profile } = useUser();
+  const [isOnline, setIsOnline] = useState(profile?.isOnline ?? true);
+  const [loading, setLoading] = useState(false);
+
+  const toggleStatus = async () => {
+    if (!profile) return;
+    setLoading(true);
+    try {
+      const newStatus = !isOnline;
+      await updateDoc(doc(db, 'users', profile.uid), { isOnline: newStatus });
+      await updateDoc(doc(db, 'public_profiles', profile.uid), { isOnline: newStatus });
+      setIsOnline(newStatus);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className={cn(
@@ -668,8 +876,9 @@ const PublisherHome = () => {
               </p>
             </div>
             <button 
-              onClick={() => setIsOnline(!isOnline)}
-              className="bg-white text-black p-3 rounded-2xl shadow-lg active:scale-95 transition-transform"
+              onClick={toggleStatus}
+              disabled={loading}
+              className="bg-white text-black p-3 rounded-2xl shadow-lg active:scale-95 transition-transform disabled:opacity-50"
             >
               <PlusSquare size={24} className={isOnline ? "text-[#25D366]" : "text-gray-400"} />
             </button>

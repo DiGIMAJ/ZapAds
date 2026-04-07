@@ -23,7 +23,7 @@ export const BookingScreen = () => {
   useEffect(() => {
     const fetchPublisher = async () => {
       if (!publisherId) return;
-      const docRef = doc(db, 'users', publisherId);
+      const docRef = doc(db, 'public_profiles', publisherId);
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
         setPublisher({ id: docSnap.id, ...docSnap.data() });

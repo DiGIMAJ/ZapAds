@@ -2,16 +2,24 @@
   "entities": {
     "User": {
       "title": "User",
-      "description": "Core user profile for both publishers and advertisers",
+      "description": "Core user profile for publishers, advertisers, or both",
       "type": "object",
       "properties": {
         "uid": { "type": "string", "description": "Firebase Auth UID" },
         "name": { "type": "string", "description": "Full name" },
         "email": { "type": "string", "format": "email", "description": "User email" },
-        "role": { "type": "string", "enum": ["publisher", "advertiser", "admin"], "description": "User role" },
+        "role": { "type": "string", "enum": ["publisher", "advertiser", "both", "admin"], "description": "User role" },
         "phone": { "type": "string", "description": "WhatsApp phone number" },
         "photoURL": { "type": "string", "description": "Profile picture URL" },
-        "createdAt": { "type": "string", "format": "date-time", "description": "Account creation timestamp" }
+        "createdAt": { "type": "string", "format": "date-time", "description": "Account creation timestamp" },
+        "channelName": { "type": "string", "description": "Name of the WhatsApp TV (for publishers)" },
+        "niches": { "type": "array", "items": { "type": "string" }, "description": "Content niches (for publishers)" },
+        "audienceSize": { "type": "number", "description": "Estimated status views (for publishers)" },
+        "pricePerPost": { "type": "number", "description": "Cost for a single ad post (for publishers)" },
+        "brandName": { "type": "string", "description": "Brand / Company name (for advertisers)" },
+        "targetNiches": { "type": "array", "items": { "type": "string" }, "description": "Target niches for ads (for advertisers)" },
+        "isOnline": { "type": "boolean", "description": "Real-time availability status" },
+        "isVerified": { "type": "boolean", "description": "Platform verification status" }
       },
       "required": ["uid", "name", "email", "role"]
     },

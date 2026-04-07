@@ -1,45 +1,48 @@
-import React, { useState, useEffect } from 'react';
-import { doc, getDoc, updateDoc, setDoc } from 'firebase/firestore';
+import React, { useState } from 'react';
+import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useUser } from '../App';
-import { User, ShieldCheck, LogOut, Tv, DollarSign, Users, Tag, ChevronRight } from 'lucide-react';
+import { User, ShieldCheck, LogOut, Tv, DollarSign, Users, Tag, ChevronRight, TrendingUp, Zap } from 'lucide-react';
 import { cn, formatCurrency } from '../lib/utils';
 
 export const ProfileScreen = () => {
-  const { profile, logout } = useUser();
+  const { profile, logout, activeRole, setActiveRole } = useUser();
   const [isEditingPublisher, setIsEditingPublisher] = useState(false);
-  const [publisherData, setPublisherData] = useState<any>(null);
+  const [isEditingAdvertiser, setIsEditingAdvertiser] = useState(false);
+  const [formData, setFormData] = useState<any>(profile);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    const fetchPublisher = async () => {
-      if (profile?.role === 'publisher') {
-        const docRef = doc(db, 'publishers', profile.uid);
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          setPublisherData(docSnap.data());
-        }
-      }
-    };
-    fetchPublisher();
-  }, [profile]);
-
-  const handleSavePublisher = async (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!profile) return;
     setLoading(true);
     try {
-      const data = {
-        uid: profile.uid,
-        channelName: publisherData?.channelName || '',
-        niches: publisherData?.niches || [],
-        audienceSize: Number(publisherData?.audienceSize) || 0,
-        pricePerPost: Number(publisherData?.pricePerPost) || 0,
-        isOnline: publisherData?.isOnline ?? true,
-        isVerified: publisherData?.isVerified ?? false,
+      const userRef = doc(db, 'users', profile.uid);
+      const publicRef = doc(db, 'public_profiles', profile.uid);
+      
+      const updateData = {
+        ...formData,
+        audienceSize: Number(formData.audienceSize) || 0,
+        pricePerPost: Number(formData.pricePerPost) || 0,
       };
-      await setDoc(doc(db, 'publishers', profile.uid), data, { merge: true });
+      
+      await updateDoc(userRef, updateData);
+      
+      // Update public profile if user is publisher or both
+      if (profile.role === 'publisher' || profile.role === 'both') {
+        const publicData = {
+          name: updateData.name,
+          photoURL: updateData.photoURL || '',
+          channelName: updateData.channelName || '',
+          niches: updateData.niches || [],
+          audienceSize: updateData.audienceSize || 0,
+          pricePerPost: updateData.pricePerPost || 0,
+        };
+        await updateDoc(publicRef, publicData);
+      }
+      
       setIsEditingPublisher(false);
+      setIsEditingAdvertiser(false);
       alert('Profile updated!');
     } catch (err) {
       console.error(err);
@@ -59,15 +62,15 @@ export const ProfileScreen = () => {
           <h1 className="text-xl font-bold">TV Settings</h1>
         </header>
 
-        <form onSubmit={handleSavePublisher} className="space-y-6">
+        <form onSubmit={handleSave} className="space-y-6">
           <div>
             <label className="block text-sm font-bold text-gray-700 mb-2">Channel Name</label>
             <input
               type="text"
               required
               className="w-full p-4 bg-gray-50 rounded-2xl border-none focus:ring-2 focus:ring-[#25D366]"
-              value={publisherData?.channelName || ''}
-              onChange={(e) => setPublisherData({ ...publisherData, channelName: e.target.value })}
+              value={formData?.channelName || ''}
+              onChange={(e) => setFormData({ ...formData, channelName: e.target.value })}
             />
           </div>
 
@@ -78,8 +81,8 @@ export const ProfileScreen = () => {
                 type="number"
                 required
                 className="w-full p-4 bg-gray-50 rounded-2xl border-none focus:ring-2 focus:ring-[#25D366]"
-                value={publisherData?.audienceSize || ''}
-                onChange={(e) => setPublisherData({ ...publisherData, audienceSize: e.target.value })}
+                value={formData?.audienceSize || ''}
+                onChange={(e) => setFormData({ ...formData, audienceSize: e.target.value })}
               />
               <Users className="absolute right-4 top-4 text-gray-400" size={20} />
             </div>
@@ -92,11 +95,45 @@ export const ProfileScreen = () => {
                 type="number"
                 required
                 className="w-full p-4 bg-gray-50 rounded-2xl border-none focus:ring-2 focus:ring-[#25D366]"
-                value={publisherData?.pricePerPost || ''}
-                onChange={(e) => setPublisherData({ ...publisherData, pricePerPost: e.target.value })}
+                value={formData?.pricePerPost || ''}
+                onChange={(e) => setFormData({ ...formData, pricePerPost: e.target.value })}
               />
               <DollarSign className="absolute right-4 top-4 text-gray-400" size={20} />
             </div>
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-[#25D366] text-white font-bold py-4 rounded-2xl shadow-lg shadow-green-100 disabled:opacity-50"
+          >
+            {loading ? 'Saving...' : 'Save Changes'}
+          </button>
+        </form>
+      </div>
+    );
+  }
+
+  if (isEditingAdvertiser) {
+    return (
+      <div className="p-4 min-h-screen bg-white">
+        <header className="flex items-center gap-4 mb-8">
+          <button onClick={() => setIsEditingAdvertiser(false)} className="p-2 -ml-2 text-gray-500">
+            <ChevronRight className="rotate-180" />
+          </button>
+          <h1 className="text-xl font-bold">Brand Settings</h1>
+        </header>
+
+        <form onSubmit={handleSave} className="space-y-6">
+          <div>
+            <label className="block text-sm font-bold text-gray-700 mb-2">Brand / Company Name</label>
+            <input
+              type="text"
+              required
+              className="w-full p-4 bg-gray-50 rounded-2xl border-none focus:ring-2 focus:ring-[#25D366]"
+              value={formData?.brandName || ''}
+              onChange={(e) => setFormData({ ...formData, brandName: e.target.value })}
+            />
           </div>
 
           <button
@@ -126,18 +163,36 @@ export const ProfileScreen = () => {
         <h2 className="text-xl font-bold text-gray-900">{profile?.name}</h2>
         <div className="flex items-center gap-2 mt-1">
           <span className="text-xs text-gray-500 capitalize px-3 py-1 bg-gray-100 rounded-full font-medium">
-            {profile?.role}
+            Role: {profile?.role}
           </span>
-          {publisherData?.isVerified && (
-            <span className="text-[10px] text-white bg-blue-500 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
-              <ShieldCheck size={10} /> Verified
+          {profile?.role === 'both' && (
+            <span className="text-xs text-[#25D366] capitalize px-3 py-1 bg-green-50 rounded-full font-bold">
+              Viewing as: {activeRole}
             </span>
           )}
         </div>
       </div>
 
       <div className="space-y-3">
-        <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider px-2 mt-4">Account</h3>
+        {profile?.role === 'both' && (
+          <>
+            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider px-2 mt-4">Switch Dashboard</h3>
+            <button 
+              onClick={() => setActiveRole(activeRole === 'publisher' ? 'advertiser' : 'publisher')}
+              className="w-full text-left p-4 bg-white rounded-2xl flex items-center justify-between group active:scale-[0.98] transition-all border-2 border-[#25D366]/10"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-green-50 rounded-xl flex items-center justify-center text-[#25D366]">
+                  <Zap size={20} />
+                </div>
+                <span className="font-bold text-gray-700">Switch to {activeRole === 'publisher' ? 'Advertiser' : 'Publisher'}</span>
+              </div>
+              <ChevronRight size={18} className="text-gray-300 group-hover:text-gray-400" />
+            </button>
+          </>
+        )}
+
+        <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider px-2 mt-4">Account Settings</h3>
         
         <button className="w-full text-left p-4 bg-white rounded-2xl flex items-center justify-between group active:scale-[0.98] transition-all">
           <div className="flex items-center gap-3">
@@ -149,7 +204,7 @@ export const ProfileScreen = () => {
           <ChevronRight size={18} className="text-gray-300 group-hover:text-gray-400" />
         </button>
 
-        {profile?.role === 'publisher' && (
+        {(profile?.role === 'publisher' || profile?.role === 'both') && (
           <button 
             onClick={() => setIsEditingPublisher(true)}
             className="w-full text-left p-4 bg-white rounded-2xl flex items-center justify-between group active:scale-[0.98] transition-all"
@@ -159,6 +214,21 @@ export const ProfileScreen = () => {
                 <Tv size={20} />
               </div>
               <span className="font-bold text-gray-700">TV Settings</span>
+            </div>
+            <ChevronRight size={18} className="text-gray-300 group-hover:text-gray-400" />
+          </button>
+        )}
+
+        {(profile?.role === 'advertiser' || profile?.role === 'both') && (
+          <button 
+            onClick={() => setIsEditingAdvertiser(true)}
+            className="w-full text-left p-4 bg-white rounded-2xl flex items-center justify-between group active:scale-[0.98] transition-all"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-orange-50 rounded-xl flex items-center justify-center text-orange-500">
+                <TrendingUp size={20} />
+              </div>
+              <span className="font-bold text-gray-700">Brand Settings</span>
             </div>
             <ChevronRight size={18} className="text-gray-300 group-hover:text-gray-400" />
           </button>
