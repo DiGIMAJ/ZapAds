@@ -49,7 +49,10 @@ service cloud.firestore {
     //   - caption: string (required) - Ad text content
     //   - niche: string (required) - Target niche
     //   - budget: number (required) - Total payment for this ad
-    //   - status: string (required, enum: ['pending', 'accepted', 'posted', 'completed', 'declined', 'cancelled']) - Current ad status
+    //   - platformFee: number (required) - 10% platform fee
+    //   - publisherEarnings: number (required) - 90% publisher earnings
+    //   - status: string (required, enum: ['paid', 'pending', 'accepted', 'posted', 'completed', 'declined', 'cancelled']) - Current ad status
+    //   - paymentReference: string (optional) - Paystack reference
     //   - proofUrl: string (optional) - URL of the proof screenshot uploaded by publisher
     //   - createdAt: string (required, date-time) - Creation timestamp
     //   - scheduledAt: string (optional, date-time) - When the ad should be posted
@@ -156,15 +159,18 @@ service cloud.firestore {
     }
 
     function isValidAd(data) {
-      return hasOnlyAllowedFields(['id', 'advertiserId', 'publisherId', 'mediaUrl', 'caption', 'niche', 'budget', 'status', 'proofUrl', 'createdAt', 'scheduledAt']) &&
-             data.id is string &&
+      return hasOnlyAllowedFields(['id', 'advertiserId', 'publisherId', 'mediaUrl', 'caption', 'niche', 'budget', 'platformFee', 'publisherEarnings', 'status', 'paymentReference', 'proofUrl', 'createdAt', 'scheduledAt']) &&
+             (!('id' in data) || data.id is string) &&
              data.advertiserId is string &&
              data.publisherId is string &&
              isValidUrl(data.mediaUrl) &&
              data.caption is string && data.caption.size() < 1000 &&
              data.niche is string &&
              data.budget is number && data.budget >= 0 &&
-             data.status in ['pending', 'accepted', 'posted', 'completed', 'declined', 'cancelled'] &&
+             data.platformFee is number &&
+             data.publisherEarnings is number &&
+             (!('paymentReference' in data) || data.paymentReference is string) &&
+             data.status in ['paid', 'pending', 'accepted', 'posted', 'completed', 'declined', 'cancelled'] &&
              (!('proofUrl' in data) || isValidUrl(data.proofUrl)) &&
              isValidDateString(data.createdAt) &&
              (!('scheduledAt' in data) || isValidDateString(data.scheduledAt));
@@ -194,12 +200,22 @@ service cloud.firestore {
 
     function isValidNotification(data) {
       return hasOnlyAllowedFields(['id', 'userId', 'type', 'message', 'isRead', 'relatedId', 'createdAt']) &&
-             data.id is string &&
+             (!('id' in data) || data.id is string) &&
              data.userId is string &&
              data.type in ['ad_request', 'ad_accepted', 'ad_posted', 'payment_received', 'new_review'] &&
              data.message is string && data.message.size() < 500 &&
              data.isRead is bool &&
              (!('relatedId' in data) || data.relatedId is string) &&
+             isValidDateString(data.createdAt);
+    }
+
+    function isValidWithdrawal(data) {
+      return hasOnlyAllowedFields(['userId', 'amount', 'bankCode', 'accountNumber', 'status', 'createdAt']) &&
+             data.userId is string &&
+             data.amount is number && data.amount >= 1000 &&
+             data.bankCode is string &&
+             data.accountNumber is string &&
+             data.status in ['processing', 'completed', 'failed'] &&
              isValidDateString(data.createdAt);
     }
 
@@ -244,8 +260,14 @@ service cloud.firestore {
 
     match /notifications/{notifId} {
       allow read: if isOwner(resource.data.userId);
-      allow create: if isAuthenticated(); // Users can trigger notifications for others (e.g. ad request)
+      allow create: if isAuthenticated() && isValidNotification(request.resource.data);
       allow update: if isOwner(resource.data.userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead']);
+    }
+
+    match /withdrawals/{withdrawalId} {
+      allow read: if isOwner(resource.data.userId) || isAdmin();
+      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.userId && isValidWithdrawal(request.resource.data);
+      allow update: if isAdmin();
     }
   }
 }

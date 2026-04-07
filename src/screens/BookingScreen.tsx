@@ -73,7 +73,9 @@ export const BookingScreen = () => {
       const verifyData = await verifyRes.json();
 
       if (verifyData.status && verifyData.data.status === 'success') {
+        const adRef = doc(collection(db, 'ads'));
         const adData = {
+          id: adRef.id,
           advertiserId: profile?.uid,
           publisherId: publisher.uid,
           mediaUrl: mediaUrl || 'https://picsum.photos/seed/ad/800/600',
@@ -87,10 +89,12 @@ export const BookingScreen = () => {
           createdAt: new Date().toISOString(),
           scheduledAt: scheduledAt || new Date().toISOString(),
         };
-        await addDoc(collection(db, 'ads'), adData);
+        await setDoc(adRef, adData);
         
         // Create notification for publisher
-        await addDoc(collection(db, 'notifications'), {
+        const notifRef = doc(collection(db, 'notifications'));
+        await setDoc(notifRef, {
+          id: notifRef.id,
           userId: publisher.uid,
           type: 'ad_request',
           message: `${profile?.name} has paid for an ad on your TV!`,
