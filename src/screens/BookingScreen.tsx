@@ -44,7 +44,7 @@ export const BookingScreen = () => {
     fetchPublisher();
   }, [publisherId]);
 
-  const totalAmount = publisher ? Math.round(publisher.pricePerPost * 1.05) : 0;
+  const totalAmount = publisher ? publisher.pricePerPost : 0;
 
   const config = {
     reference: (new Date()).getTime().toString(),
@@ -52,6 +52,12 @@ export const BookingScreen = () => {
     amount: totalAmount * 100, // Paystack expects amount in kobo
     publicKey: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || 'pk_test_placeholder',
   };
+
+  useEffect(() => {
+    if (config.publicKey === 'pk_test_placeholder') {
+      console.warn("Paystack Public Key is missing! Please set VITE_PAYSTACK_PUBLIC_KEY in your environment variables.");
+    }
+  }, [config.publicKey]);
 
   const initializePayment = usePaystackPayment(config);
 
@@ -74,6 +80,8 @@ export const BookingScreen = () => {
           caption,
           niche: publisher.niches[0],
           budget: publisher.pricePerPost,
+          platformFee: Math.round(publisher.pricePerPost * 0.10), // 10% internal fee
+          publisherEarnings: Math.round(publisher.pricePerPost * 0.90),
           status: 'paid',
           paymentReference: reference.reference,
           createdAt: new Date().toISOString(),
@@ -93,11 +101,12 @@ export const BookingScreen = () => {
         alert('Payment successful and ad booked!');
         navigate('/campaigns');
       } else {
-        alert('Payment verification failed. Please contact support.');
+        console.error("Verification failed:", verifyData);
+        alert(`Payment verification failed: ${verifyData.message || verifyData.error || 'Unknown error'}. Please contact support.`);
       }
     } catch (err) {
-      console.error(err);
-      alert('Error verifying payment.');
+      console.error("Verification error:", err);
+      alert('Error verifying payment. Please check your internet connection or contact support.');
     } finally {
       setBookingLoading(false);
     }
@@ -184,16 +193,8 @@ export const BookingScreen = () => {
 
         {/* Pricing Summary */}
         <div className="bg-green-50 p-6 rounded-3xl space-y-3">
-          <div className="flex justify-between text-sm">
-            <span className="text-gray-600">Ad Fee</span>
-            <span className="font-bold text-gray-900">{formatCurrency(publisher.pricePerPost)}</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-gray-600">Service Fee (5%)</span>
-            <span className="font-bold text-gray-900">{formatCurrency(publisher.pricePerPost * 0.05)}</span>
-          </div>
-          <div className="pt-3 border-t border-green-100 flex justify-between items-center">
-            <span className="font-bold text-gray-900">Total</span>
+          <div className="flex justify-between items-center">
+            <span className="font-bold text-gray-900">Total Amount</span>
             <span className="text-xl font-black text-[#25D366]">
               {formatCurrency(totalAmount)}
             </span>

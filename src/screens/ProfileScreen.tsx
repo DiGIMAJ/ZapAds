@@ -149,7 +149,7 @@ export const ProfileScreen = () => {
   }
 
   return (
-    <div className="p-4 pb-24">
+    <div className="p-4 pb-24 bg-white min-h-screen">
       <div className="flex flex-col items-center py-8">
         <div className="w-24 h-24 bg-gray-200 rounded-full mb-4 overflow-hidden shadow-inner">
           {profile?.photoURL ? (

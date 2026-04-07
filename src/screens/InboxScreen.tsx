@@ -42,7 +42,7 @@ export const InboxScreen = () => {
   if (loading) return <div className="p-8 text-center">Loading requests...</div>;
 
   return (
-    <div className="p-4 space-y-6 pb-24">
+    <div className="p-4 space-y-6 pb-24 bg-white min-h-screen">
       <header className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Ad Requests</h1>
         <p className="text-gray-500 text-sm">Manage your incoming bookings</p>

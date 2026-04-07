@@ -24,7 +24,7 @@ export const CampaignsScreen = () => {
   if (loading) return <div className="p-8 text-center">Loading campaigns...</div>;
 
   return (
-    <div className="p-4 space-y-6 pb-24">
+    <div className="p-4 space-y-6 pb-24 bg-white min-h-screen">
       <header className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Your Campaigns</h1>
         <p className="text-gray-500 text-sm">Track your ad performance</p>

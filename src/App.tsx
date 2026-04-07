@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Link, useLocation, useNavigate } from 'react-router-dom';
 import { onAuthStateChanged, User as FirebaseUser, signInWithPopup, GoogleAuthProvider, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc, onSnapshot, collection, getDocs, query, where } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot, collection, getDocs, query, where, addDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import { Home, MessageSquare, PlusSquare, User, Bell, ShieldCheck, TrendingUp, ChevronLeft, CheckCircle2, Zap, Users, Search } from 'lucide-react';
 import { cn } from './lib/utils';
@@ -566,7 +566,7 @@ export default function App() {
   if (profile) return (
     <UserContext.Provider value={contextValue}>
       <Router>
-        <div className="min-h-screen bg-gray-50 pb-20 font-sans relative">
+        <div className="min-h-screen bg-white pb-20 font-sans relative">
           <Routes>
             <Route path="/" element={<HomeScreen />} />
             <Route path="/campaigns" element={<CampaignsScreen />} />
@@ -846,6 +846,62 @@ const PublisherHome = () => {
   const [isOnline, setIsOnline] = useState(profile?.isOnline ?? true);
   const [loading, setLoading] = useState(false);
 
+  const [showWithdrawModal, setShowWithdrawModal] = useState(false);
+  const [withdrawAmount, setWithdrawAmount] = useState('');
+  const [bankCode, setBankCode] = useState('');
+  const [accountNumber, setAccountNumber] = useState('');
+  const [withdrawLoading, setWithdrawLoading] = useState(false);
+
+  const handleWithdraw = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!profile || !withdrawAmount) return;
+    
+    const amount = Number(withdrawAmount);
+    if (amount < 1000) {
+      alert('Minimum withdrawal is ₦1,000');
+      return;
+    }
+
+    setWithdrawLoading(true);
+    try {
+      // 1. Log request to Firestore
+      await addDoc(collection(db, 'withdrawals'), {
+        userId: profile.uid,
+        amount,
+        bankCode,
+        accountNumber,
+        status: 'processing',
+        createdAt: new Date().toISOString(),
+      });
+      
+      // 2. Call Paystack Transfer API via our backend
+      const res = await fetch('/api/paystack/withdraw', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount,
+          bankCode,
+          accountNumber,
+          userId: profile.uid
+        })
+      });
+      const data = await res.json();
+
+      if (data.status) {
+        alert('Withdrawal successful! Funds are on their way.');
+        setShowWithdrawModal(false);
+        setWithdrawAmount('');
+      } else {
+        alert(`Withdrawal failed: ${data.message || 'Unknown error'}`);
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Failed to process withdrawal.');
+    } finally {
+      setWithdrawLoading(false);
+    }
+  };
+
   const toggleStatus = async () => {
     if (!profile) return;
     setLoading(true);
@@ -897,6 +953,20 @@ const PublisherHome = () => {
         <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -mr-20 -mt-20"></div>
       </div>
 
+      <div className="bg-[#25D366] p-8 rounded-[2rem] text-white shadow-xl shadow-green-100 relative overflow-hidden">
+        <div className="relative z-10">
+          <h2 className="text-2xl font-black mb-2 tracking-tight">Withdraw Funds</h2>
+          <p className="text-sm font-medium opacity-90 mb-6 max-w-[200px]">Transfer your earnings to your bank account instantly.</p>
+          <button 
+            onClick={() => setShowWithdrawModal(true)}
+            className="bg-white text-black px-6 py-3 rounded-full font-black text-sm inline-block shadow-lg hover:bg-gray-50 transition-colors"
+          >
+            Withdraw Now
+          </button>
+        </div>
+        <div className="absolute -right-8 -bottom-8 w-40 h-40 bg-white/10 rounded-full blur-2xl"></div>
+      </div>
+
       <div>
         <h3 className="font-black text-xl text-gray-900 mb-4 px-1 tracking-tight">Recent Ad Requests</h3>
         <div className="bg-white p-12 rounded-[2rem] text-center border-2 border-dashed border-gray-200">
@@ -906,6 +976,103 @@ const PublisherHome = () => {
           <p className="text-gray-500 font-medium">No active requests yet.</p>
         </div>
       </div>
+
+      {/* Withdraw Modal */}
+      <AnimatePresence>
+        {showWithdrawModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowWithdrawModal(false)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-md bg-white rounded-[2.5rem] p-8 shadow-2xl"
+            >
+              <h2 className="text-2xl font-black text-gray-900 mb-2">Withdraw Funds</h2>
+              <p className="text-sm text-gray-500 mb-6 font-medium">Transfer your earnings to your local bank account via Paystack.</p>
+              
+              <form onSubmit={handleWithdraw} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-black uppercase tracking-widest text-gray-400 mb-2 ml-1">Amount (₦)</label>
+                  <input 
+                    type="number"
+                    required
+                    min="1000"
+                    placeholder="Min 1,000"
+                    className="w-full p-4 bg-gray-50 rounded-2xl border-none focus:ring-2 focus:ring-[#25D366] font-bold"
+                    value={withdrawAmount}
+                    onChange={(e) => setWithdrawAmount(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-black uppercase tracking-widest text-gray-400 mb-2 ml-1">Bank Name</label>
+                  <select 
+                    required
+                    className="w-full p-4 bg-gray-50 rounded-2xl border-none focus:ring-2 focus:ring-[#25D366] font-bold appearance-none"
+                    value={bankCode}
+                    onChange={(e) => setBankCode(e.target.value)}
+                  >
+                    <option value="">Select Bank</option>
+                    <option value="011">First Bank</option>
+                    <option value="058">GTBank</option>
+                    <option value="033">United Bank for Africa</option>
+                    <option value="044">Access Bank</option>
+                    <option value="057">Zenith Bank</option>
+                    <option value="035">Wema Bank</option>
+                    <option value="070">Fidelity Bank</option>
+                    <option value="214">First City Monument Bank</option>
+                    <option value="032">Union Bank</option>
+                    <option value="030">Heritage Bank</option>
+                    <option value="082">Keystone Bank</option>
+                    <option value="076">Polaris Bank</option>
+                    <option value="221">Stanbic IBTC Bank</option>
+                    <option value="232">Sterling Bank</option>
+                    <option value="101">Providus Bank</option>
+                    <option value="090110">VFD Microfinance Bank</option>
+                    <option value="090267">Kuda Bank</option>
+                    <option value="090405">Moniepoint MFB</option>
+                    <option value="090175">Opay</option>
+                    <option value="090267">Palmpay</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-black uppercase tracking-widest text-gray-400 mb-2 ml-1">Account Number</label>
+                  <input 
+                    type="text"
+                    required
+                    maxLength={10}
+                    placeholder="10 digits"
+                    className="w-full p-4 bg-gray-50 rounded-2xl border-none focus:ring-2 focus:ring-[#25D366] font-bold"
+                    value={accountNumber}
+                    onChange={(e) => setAccountNumber(e.target.value)}
+                  />
+                </div>
+                
+                <button 
+                  type="submit"
+                  disabled={withdrawLoading}
+                  className="w-full bg-[#25D366] text-white py-5 rounded-2xl font-black text-lg shadow-xl shadow-green-100 active:scale-95 transition-all disabled:opacity-50 mt-4"
+                >
+                  {withdrawLoading ? 'Processing...' : 'Confirm Withdrawal'}
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => setShowWithdrawModal(false)}
+                  className="w-full py-3 text-gray-400 font-bold text-sm"
+                >
+                  Cancel
+                </button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
@@ -913,7 +1080,7 @@ const PublisherHome = () => {
 const CreateAdScreen = () => {
   const navigate = useNavigate();
   return (
-    <div className="p-4 min-h-screen bg-gray-50 font-sans">
+    <div className="p-4 min-h-screen bg-white font-sans">
       <header className="flex items-center gap-4 mb-8 pt-4">
         <button onClick={() => navigate(-1)} className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm">
           <ChevronLeft size={20} />

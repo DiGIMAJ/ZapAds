@@ -51,64 +51,59 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onEmailS
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-md bg-[#121212] border border-white/10 rounded-[2.5rem] shadow-2xl overflow-hidden"
+              className="relative w-full max-w-md bg-[#121212] border border-white/10 rounded-[2rem] shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto"
             >
               <button 
                 onClick={() => setShowAuthModal(false)}
-                className="absolute top-6 right-6 p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-full transition-colors"
+                className="absolute top-4 right-4 p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-full transition-colors z-10"
               >
-                <X size={20} />
+                <X size={18} />
               </button>
 
-              <div className="p-8 pt-12">
-                <div className="text-center mb-8">
-                  <div className="w-12 h-12 bg-[#25D366] rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-[0_0_30px_rgba(37,211,102,0.3)]">
-                    <ShieldCheck size={24} className="text-black" />
+              <div className="p-6 pt-10">
+                <div className="text-center mb-6">
+                  <div className="w-10 h-10 bg-[#25D366] rounded-xl flex items-center justify-center mx-auto mb-3 shadow-[0_0_20px_rgba(37,211,102,0.3)]">
+                    <ShieldCheck size={20} className="text-black" />
                   </div>
-                  <h2 className="text-3xl font-black tracking-tight text-white">
+                  <h2 className="text-2xl font-black tracking-tight text-white">
                     {authMode === 'signup' ? 'Create Account' : 'Welcome Back'}
                   </h2>
-                  <p className="text-gray-400 text-sm mt-2">
-                    {authMode === 'signup' 
-                      ? 'Join the premium WhatsApp TV marketplace' 
-                      : 'Sign in to manage your campaigns'}
-                  </p>
                 </div>
 
-                <form onSubmit={handleEmailAuth} className="space-y-4">
+                <form onSubmit={handleEmailAuth} className="space-y-3">
                   <div className="space-y-1">
-                    <label className="text-xs font-bold uppercase tracking-wider text-gray-500 ml-1">Email Address</label>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-1">Email</label>
                     <div className="relative">
-                      <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+                      <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
                       <input 
                         type="email" 
                         required
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         placeholder="you@example.com"
-                        className="w-full bg-white/5 border border-white/10 focus:border-[#25D366] text-white rounded-2xl py-4 pl-12 pr-4 outline-none transition-all font-medium placeholder:text-gray-600"
+                        className="w-full bg-white/5 border border-white/10 focus:border-[#25D366] text-white rounded-xl py-3.5 pl-11 pr-4 outline-none transition-all text-sm font-medium placeholder:text-gray-600"
                       />
                     </div>
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-xs font-bold uppercase tracking-wider text-gray-500 ml-1">Password</label>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-1">Password</label>
                     <div className="relative">
-                      <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+                      <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
                       <input 
                         type="password" 
                         required
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         placeholder="••••••••"
-                        className="w-full bg-white/5 border border-white/10 focus:border-[#25D366] text-white rounded-2xl py-4 pl-12 pr-4 outline-none transition-all font-medium placeholder:text-gray-600"
+                        className="w-full bg-white/5 border border-white/10 focus:border-[#25D366] text-white rounded-xl py-3.5 pl-11 pr-4 outline-none transition-all text-sm font-medium placeholder:text-gray-600"
                       />
                     </div>
                   </div>
 
                   {error && (
-                    <div className="flex items-center gap-2 text-red-400 bg-red-500/10 border border-red-500/20 p-4 rounded-2xl text-sm font-medium">
-                      <AlertCircle size={16} />
+                    <div className="flex items-center gap-2 text-red-400 bg-red-500/10 border border-red-500/20 p-3 rounded-xl text-xs font-medium">
+                      <AlertCircle size={14} />
                       <span>{error}</span>
                     </div>
                   )}
@@ -116,34 +111,34 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onEmailS
                   <button 
                     type="submit"
                     disabled={loading}
-                    className="w-full bg-[#25D366] text-black py-4 rounded-2xl font-black text-lg hover:bg-[#1ebe57] transition-all active:scale-95 disabled:opacity-50 mt-2"
+                    className="w-full bg-[#25D366] text-black py-3.5 rounded-xl font-black text-base hover:bg-[#1ebe57] transition-all active:scale-95 disabled:opacity-50 mt-2"
                   >
                     {loading ? 'Processing...' : (authMode === 'signup' ? 'Sign Up' : 'Sign In')}
                   </button>
                 </form>
 
-                <div className="mt-8">
-                  <div className="relative flex items-center justify-center mb-8">
+                <div className="mt-6">
+                  <div className="relative flex items-center justify-center mb-6">
                     <div className="absolute inset-0 flex items-center">
                       <div className="w-full border-t border-white/10"></div>
                     </div>
-                    <span className="relative px-4 bg-[#121212] text-xs font-bold text-gray-500 uppercase tracking-widest">Or continue with</span>
+                    <span className="relative px-3 bg-[#121212] text-[10px] font-black text-gray-500 uppercase tracking-widest">Or</span>
                   </div>
 
                   <button 
                     onClick={onGetStarted}
-                    className="w-full bg-white/5 border border-white/10 text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-3 hover:bg-white/10 transition-all active:scale-95"
+                    className="w-full bg-white/5 border border-white/10 text-white py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-3 hover:bg-white/10 transition-all active:scale-95"
                   >
-                    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-5 h-5" alt="Google" />
+                    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-4 h-4" alt="Google" />
                     Google Account
                   </button>
                 </div>
 
-                <p className="text-center mt-8 text-sm text-gray-400">
+                <p className="text-center mt-6 text-xs text-gray-400">
                   {authMode === 'signup' ? 'Already have an account?' : "Don't have an account?"}{' '}
                   <button 
                     onClick={() => setAuthMode(authMode === 'signup' ? 'signin' : 'signup')}
-                    className="text-[#25D366] font-bold hover:text-white transition-colors"
+                    className="text-[#25D366] font-black hover:text-white transition-colors"
                   >
                     {authMode === 'signup' ? 'Sign In' : 'Sign Up'}
                   </button>
