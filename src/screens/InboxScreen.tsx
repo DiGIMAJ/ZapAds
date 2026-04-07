@@ -79,10 +79,25 @@ export const InboxScreen = () => {
               </div>
 
               <div className="bg-gray-50 p-3 rounded-xl mb-4">
-                <p className="text-sm text-gray-700 line-clamp-2 italic">"{ad.caption}"</p>
-                <div className="mt-2 flex gap-2">
-                  <a href={ad.mediaUrl} target="_blank" rel="noreferrer" className="text-[10px] text-[#25D366] font-bold flex items-center gap-1">
-                    View Media <ExternalLink size={10} />
+                <p className="text-sm text-gray-700 line-clamp-2 italic mb-3">"{ad.caption}"</p>
+                
+                <div className="relative rounded-xl overflow-hidden border border-gray-200 bg-black aspect-video flex items-center justify-center mb-3">
+                  {ad.mediaUrl.match(/\.(mp4|webm|ogg)$/) || ad.mediaUrl.includes('video/upload') ? (
+                    <video src={ad.mediaUrl} className="w-full h-full object-contain" controls />
+                  ) : (
+                    <img src={ad.mediaUrl} alt="Ad Content" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
+                  )}
+                </div>
+
+                <div className="flex gap-3">
+                  <a 
+                    href={ad.mediaUrl} 
+                    target="_blank" 
+                    rel="noreferrer" 
+                    download
+                    className="flex-1 bg-white border border-gray-200 text-gray-700 py-2 rounded-lg text-[10px] font-bold flex items-center justify-center gap-2 shadow-sm"
+                  >
+                    Download Ad <ExternalLink size={12} />
                   </a>
                 </div>
               </div>

@@ -3,10 +3,11 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { doc, getDoc, setDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useUser } from '../App';
-import { ChevronLeft, ShieldCheck, Info, Upload } from 'lucide-react';
+import { ChevronLeft, ShieldCheck, Info, Upload, Image as ImageIcon, Loader2 } from 'lucide-react';
 import { formatCurrency } from '../lib/utils';
 import { usePaystackPayment } from 'react-paystack';
 import { handleFirestoreError, OperationType } from '../lib/firebaseUtils';
+import { uploadToCloudinary } from '../lib/cloudinary';
 
 export const BookingScreen = () => {
   const { publisherId } = useParams();
@@ -15,11 +16,28 @@ export const BookingScreen = () => {
   const [publisher, setPublisher] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [bookingLoading, setBookingLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   // Form state
   const [mediaUrl, setMediaUrl] = useState('');
   const [caption, setCaption] = useState('');
   const [scheduledAt, setScheduledAt] = useState('');
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    try {
+      const url = await uploadToCloudinary(file);
+      setMediaUrl(url);
+    } catch (err) {
+      console.error(err);
+      alert('Upload failed. Please try again.');
+    } finally {
+      setUploading(false);
+    }
+  };
 
   useEffect(() => {
     const fetchPublisher = async () => {
@@ -179,18 +197,49 @@ export const BookingScreen = () => {
         {/* Ad Details Form */}
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">Ad Media URL</label>
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="https://example.com/image.jpg"
-                className="w-full p-4 bg-gray-50 rounded-2xl border-none focus:ring-2 focus:ring-[#25D366]"
-                value={mediaUrl}
-                onChange={(e) => setMediaUrl(e.target.value)}
-              />
-              <Upload className="absolute right-4 top-4 text-gray-400" size={20} />
+            <label className="block text-sm font-bold text-gray-700 mb-2">Ad Media</label>
+            <div className="space-y-4">
+              {mediaUrl ? (
+                <div className="relative rounded-2xl overflow-hidden border border-gray-200 bg-gray-50 aspect-video flex items-center justify-center">
+                  {mediaUrl.match(/\.(mp4|webm|ogg)$/) || mediaUrl.includes('video/upload') ? (
+                    <video src={mediaUrl} className="w-full h-full object-contain" controls />
+                  ) : (
+                    <img src={mediaUrl} alt="Ad Preview" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
+                  )}
+                  <button 
+                    onClick={() => setMediaUrl('')}
+                    className="absolute top-2 right-2 bg-white/80 backdrop-blur-sm p-2 rounded-full shadow-sm text-red-500"
+                  >
+                    <Upload size={16} className="rotate-180" />
+                  </button>
+                </div>
+              ) : (
+                <label className="flex flex-col items-center justify-center w-full h-40 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200 cursor-pointer hover:bg-gray-100 transition-colors">
+                  <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                    {uploading ? (
+                      <Loader2 className="w-10 h-10 text-[#25D366] animate-spin mb-3" />
+                    ) : (
+                      <ImageIcon className="w-10 h-10 text-gray-400 mb-3" />
+                    )}
+                    <p className="mb-2 text-sm text-gray-500 font-bold">
+                      {uploading ? 'Uploading...' : 'Click to upload ad media'}
+                    </p>
+                    <p className="text-xs text-gray-400">PNG, JPG or MP4 (Max 10MB)</p>
+                  </div>
+                  <input type="file" className="hidden" accept="image/*,video/*" onChange={handleFileUpload} disabled={uploading} />
+                </label>
+              )}
+              
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Or paste media URL here..."
+                  className="w-full p-4 bg-gray-50 rounded-2xl border-none focus:ring-2 focus:ring-[#25D366] text-sm"
+                  value={mediaUrl}
+                  onChange={(e) => setMediaUrl(e.target.value)}
+                />
+              </div>
             </div>
-            <p className="text-[10px] text-gray-400 mt-1 px-1">Paste a link to your image or video</p>
           </div>
 
           <div>

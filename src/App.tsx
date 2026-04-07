@@ -13,6 +13,7 @@ import { CampaignsScreen } from './screens/CampaignsScreen';
 import { UploadProofScreen } from './screens/UploadProofScreen';
 import { ProfileScreen } from './screens/ProfileScreen';
 import { ContactScreen } from './screens/ContactScreen';
+import { WalletScreen } from './screens/WalletScreen';
 
 import { LandingPage } from './components/LandingPage';
 
@@ -64,8 +65,8 @@ const Navbar = () => {
 
   const navItems = [
     { path: '/', icon: Home, label: 'Home' },
-    { path: '/campaigns', icon: TrendingUp, label: 'Ads' },
-    { path: '/inbox', icon: MessageSquare, label: 'Inbox' },
+    { path: '/campaigns', icon: TrendingUp, label: profile?.role === 'publisher' ? 'Earnings' : 'Ads' },
+    { path: '/inbox', icon: MessageSquare, label: profile?.role === 'publisher' ? 'Requests' : 'Inbox' },
     { path: '/profile', icon: User, label: 'Profile' },
   ];
 
@@ -574,6 +575,7 @@ export default function App() {
             <Route path="/profile" element={<ProfileScreen />} />
             <Route path="/book/:publisherId" element={<BookingScreen />} />
             <Route path="/upload-proof/:adId" element={<UploadProofScreen />} />
+            <Route path="/wallet" element={<WalletScreen />} />
             <Route path="/create-ad" element={<CreateAdScreen />} />
             <Route path="/contact" element={<ContactScreen />} />
             <Route path="*" element={<Navigate to="/" />} />

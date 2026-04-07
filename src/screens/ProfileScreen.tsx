@@ -2,11 +2,13 @@ import React, { useState } from 'react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useUser } from '../App';
-import { User, ShieldCheck, LogOut, Tv, DollarSign, Users, Tag, ChevronRight, TrendingUp, Zap } from 'lucide-react';
+import { User, ShieldCheck, LogOut, Tv, DollarSign, Users, Tag, ChevronRight, TrendingUp, Zap, Wallet } from 'lucide-react';
 import { cn, formatCurrency } from '../lib/utils';
+import { useNavigate } from 'react-router-dom';
 
 export const ProfileScreen = () => {
   const { profile, logout, activeRole, setActiveRole } = useUser();
+  const navigate = useNavigate();
   const [isEditingPublisher, setIsEditingPublisher] = useState(false);
   const [isEditingAdvertiser, setIsEditingAdvertiser] = useState(false);
   const [formData, setFormData] = useState<any>(profile);
@@ -205,18 +207,33 @@ export const ProfileScreen = () => {
         </button>
 
         {(profile?.role === 'publisher' || profile?.role === 'both') && (
-          <button 
-            onClick={() => setIsEditingPublisher(true)}
-            className="w-full text-left p-4 bg-white rounded-2xl flex items-center justify-between group active:scale-[0.98] transition-all"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-green-50 rounded-xl flex items-center justify-center text-[#25D366]">
-                <Tv size={20} />
+          <>
+            <button 
+              onClick={() => navigate('/wallet')}
+              className="w-full text-left p-4 bg-white rounded-2xl flex items-center justify-between group active:scale-[0.98] transition-all border-2 border-green-50"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-green-50 rounded-xl flex items-center justify-center text-[#25D366]">
+                  <Wallet size={20} />
+                </div>
+                <span className="font-bold text-gray-700">Wallet & Payouts</span>
               </div>
-              <span className="font-bold text-gray-700">TV Settings</span>
-            </div>
-            <ChevronRight size={18} className="text-gray-300 group-hover:text-gray-400" />
-          </button>
+              <ChevronRight size={18} className="text-gray-300 group-hover:text-gray-400" />
+            </button>
+
+            <button 
+              onClick={() => setIsEditingPublisher(true)}
+              className="w-full text-left p-4 bg-white rounded-2xl flex items-center justify-between group active:scale-[0.98] transition-all"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-green-50 rounded-xl flex items-center justify-center text-[#25D366]">
+                  <Tv size={20} />
+                </div>
+                <span className="font-bold text-gray-700">TV Settings</span>
+              </div>
+              <ChevronRight size={18} className="text-gray-300 group-hover:text-gray-400" />
+            </button>
+          </>
         )}
 
         {(profile?.role === 'advertiser' || profile?.role === 'both') && (

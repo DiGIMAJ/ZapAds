@@ -97,13 +97,34 @@
       "properties": {
         "id": { "type": "string", "description": "Notification ID" },
         "userId": { "type": "string", "description": "Target user UID" },
-        "type": { "type": "string", "enum": ["ad_request", "ad_accepted", "ad_posted", "payment_received", "new_review"], "description": "Type of alert" },
+        "type": { "type": "string", "enum": ["ad_request", "ad_accepted", "ad_posted", "payment_received", "new_review", "withdrawal_request", "ad_completed"], "description": "Type of alert" },
         "message": { "type": "string", "description": "Notification text" },
         "isRead": { "type": "boolean", "description": "Read status" },
         "relatedId": { "type": "string", "description": "ID of related ad/transaction" },
         "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp" }
       },
       "required": ["userId", "type", "message", "isRead"]
+    },
+    "Withdrawal": {
+      "title": "Withdrawal",
+      "description": "Payout request from a publisher",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Withdrawal ID" },
+        "userId": { "type": "string", "description": "UID of the publisher" },
+        "amount": { "type": "number", "description": "Amount to withdraw" },
+        "status": { "type": "string", "enum": ["pending", "completed", "failed"], "description": "Withdrawal status" },
+        "bankDetails": {
+          "type": "object",
+          "properties": {
+            "accountNumber": { "type": "string" },
+            "bankName": { "type": "string" },
+            "accountName": { "type": "string" }
+          }
+        },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Request timestamp" }
+      },
+      "required": ["userId", "amount", "status", "bankDetails"]
     }
   },
   "firestore": {
@@ -112,6 +133,7 @@
     "/ads/{adId}": { "schema": "Ad", "description": "Ad campaigns" },
     "/transactions/{txnId}": { "schema": "Transaction", "description": "Payment records" },
     "/reviews/{reviewId}": { "schema": "Review", "description": "Publisher reviews" },
-    "/notifications/{notifId}": { "schema": "Notification", "description": "User notifications" }
+    "/notifications/{notifId}": { "schema": "Notification", "description": "User notifications" },
+    "/withdrawals/{withdrawalId}": { "schema": "Withdrawal", "description": "Payout requests" }
   }
 }

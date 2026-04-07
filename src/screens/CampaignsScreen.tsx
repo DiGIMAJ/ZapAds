@@ -2,13 +2,42 @@ import React, { useState, useEffect } from 'react';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useUser } from '../App';
-import { TrendingUp, Clock, CheckCircle, XCircle, ExternalLink } from 'lucide-react';
+import { TrendingUp, Clock, CheckCircle, XCircle, ExternalLink, CheckCircle2, Loader2 } from 'lucide-react';
 import { formatCurrency, cn } from '../lib/utils';
+import { doc, updateDoc, addDoc, collection } from 'firebase/firestore';
 
 export const CampaignsScreen = () => {
   const { profile } = useUser();
   const [ads, setAds] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [verifying, setVerifying] = useState<string | null>(null);
+
+  const handleVerify = async (ad: any) => {
+    if (!window.confirm('Are you sure the ad was posted correctly? This will release funds to the publisher.')) return;
+    
+    setVerifying(ad.id);
+    try {
+      await updateDoc(doc(db, 'ads', ad.id), {
+        status: 'completed'
+      });
+
+      // Notify publisher
+      await addDoc(collection(db, 'notifications'), {
+        userId: ad.publisherId,
+        type: 'ad_completed',
+        message: `Your proof for ad #${ad.id.slice(0, 5)} was verified! Funds have been added to your wallet.`,
+        isRead: false,
+        createdAt: new Date().toISOString(),
+      });
+
+      alert('Campaign completed successfully!');
+    } catch (err) {
+      console.error(err);
+      alert('Failed to verify ad.');
+    } finally {
+      setVerifying(null);
+    }
+  };
 
   useEffect(() => {
     if (!profile) return;
@@ -70,13 +99,35 @@ export const CampaignsScreen = () => {
                 </div>
               </div>
 
-              {ad.proofUrl && (
-                <div className="mb-4 p-3 bg-green-50 rounded-xl border border-green-100 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle className="text-[#25D366]" size={16} />
-                    <span className="text-xs font-bold text-green-700">Proof Uploaded</span>
+              {ad.proofUrl && ad.status === 'posted' && (
+                <div className="mb-4 p-4 bg-green-50 rounded-2xl border border-green-100 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="text-[#25D366]" size={16} />
+                      <span className="text-xs font-bold text-green-700">Proof Uploaded</span>
+                    </div>
+                    <a href={ad.proofUrl} target="_blank" rel="noreferrer" className="text-[10px] text-[#25D366] font-bold underline">
+                      View Proof
+                    </a>
                   </div>
-                  <a href={ad.proofUrl} target="_blank" rel="noreferrer" className="text-[10px] text-[#25D366] font-bold underline">
+                  <button 
+                    onClick={() => handleVerify(ad)}
+                    disabled={verifying === ad.id}
+                    className="w-full bg-[#25D366] text-white py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-sm active:scale-95 transition-all disabled:opacity-50"
+                  >
+                    {verifying === ad.id ? <Loader2 className="animate-spin" size={14} /> : <CheckCircle2 size={14} />}
+                    Verify & Release Funds
+                  </button>
+                </div>
+              )}
+
+              {ad.proofUrl && ad.status === 'completed' && (
+                <div className="mb-4 p-3 bg-gray-50 rounded-xl border border-gray-100 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="text-gray-400" size={16} />
+                    <span className="text-xs font-bold text-gray-500">Campaign Completed</span>
+                  </div>
+                  <a href={ad.proofUrl} target="_blank" rel="noreferrer" className="text-[10px] text-gray-400 font-bold underline">
                     View Proof
                   </a>
                 </div>

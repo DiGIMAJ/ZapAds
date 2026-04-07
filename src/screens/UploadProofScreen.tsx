@@ -3,8 +3,9 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { doc, getDoc, updateDoc, addDoc, collection } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useUser } from '../App';
-import { ChevronLeft, Camera, ShieldCheck, Info, Upload } from 'lucide-react';
+import { ChevronLeft, Camera, ShieldCheck, Info, Upload, Loader2, Image as ImageIcon } from 'lucide-react';
 import { formatCurrency } from '../lib/utils';
+import { uploadToCloudinary } from '../lib/cloudinary';
 
 export const UploadProofScreen = () => {
   const { adId } = useParams();
@@ -13,9 +14,26 @@ export const UploadProofScreen = () => {
   const [ad, setAd] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [uploadLoading, setUploadLoading] = useState(false);
+  const [fileUploading, setFileUploading] = useState(false);
 
   // Form state
   const [proofUrl, setProofUrl] = useState('');
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setFileUploading(true);
+    try {
+      const url = await uploadToCloudinary(file);
+      setProofUrl(url);
+    } catch (err) {
+      console.error(err);
+      alert('Upload failed. Please try again.');
+    } finally {
+      setFileUploading(false);
+    }
+  };
 
   useEffect(() => {
     const fetchAd = async () => {
@@ -87,18 +105,45 @@ export const UploadProofScreen = () => {
 
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">Proof Screenshot URL</label>
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="https://example.com/proof-screenshot.jpg"
-                className="w-full p-4 bg-gray-50 rounded-2xl border-none focus:ring-2 focus:ring-[#25D366]"
-                value={proofUrl}
-                onChange={(e) => setProofUrl(e.target.value)}
-              />
-              <Camera className="absolute right-4 top-4 text-gray-400" size={20} />
+            <label className="block text-sm font-bold text-gray-700 mb-2">Proof Screenshot</label>
+            <div className="space-y-4">
+              {proofUrl ? (
+                <div className="relative rounded-2xl overflow-hidden border border-gray-200 bg-gray-50 aspect-video flex items-center justify-center">
+                  <img src={proofUrl} alt="Proof Preview" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
+                  <button 
+                    onClick={() => setProofUrl('')}
+                    className="absolute top-2 right-2 bg-white/80 backdrop-blur-sm p-2 rounded-full shadow-sm text-red-500"
+                  >
+                    <Upload size={16} className="rotate-180" />
+                  </button>
+                </div>
+              ) : (
+                <label className="flex flex-col items-center justify-center w-full h-40 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200 cursor-pointer hover:bg-gray-100 transition-colors">
+                  <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                    {fileUploading ? (
+                      <Loader2 className="w-10 h-10 text-[#25D366] animate-spin mb-3" />
+                    ) : (
+                      <Camera className="w-10 h-10 text-gray-400 mb-3" />
+                    )}
+                    <p className="mb-2 text-sm text-gray-500 font-bold">
+                      {fileUploading ? 'Uploading...' : 'Click to upload screenshot'}
+                    </p>
+                    <p className="text-xs text-gray-400">PNG or JPG of your status views</p>
+                  </div>
+                  <input type="file" className="hidden" accept="image/*" onChange={handleFileUpload} disabled={fileUploading} />
+                </label>
+              )}
+              
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Or paste screenshot URL here..."
+                  className="w-full p-4 bg-gray-50 rounded-2xl border-none focus:ring-2 focus:ring-[#25D366] text-sm"
+                  value={proofUrl}
+                  onChange={(e) => setProofUrl(e.target.value)}
+                />
+              </div>
             </div>
-            <p className="text-[10px] text-gray-400 mt-1 px-1">Upload a screenshot of your WhatsApp status showing the ad views</p>
           </div>
         </div>
 

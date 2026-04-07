@@ -202,7 +202,7 @@ service cloud.firestore {
       return hasOnlyAllowedFields(['id', 'userId', 'type', 'message', 'isRead', 'relatedId', 'createdAt']) &&
              (!('id' in data) || data.id is string) &&
              data.userId is string &&
-             data.type in ['ad_request', 'ad_accepted', 'ad_posted', 'payment_received', 'new_review'] &&
+             data.type in ['ad_request', 'ad_accepted', 'ad_posted', 'payment_received', 'new_review', 'withdrawal_request', 'ad_completed'] &&
              data.message is string && data.message.size() < 500 &&
              data.isRead is bool &&
              (!('relatedId' in data) || data.relatedId is string) &&
@@ -210,12 +210,15 @@ service cloud.firestore {
     }
 
     function isValidWithdrawal(data) {
-      return hasOnlyAllowedFields(['userId', 'amount', 'bankCode', 'accountNumber', 'status', 'createdAt']) &&
+      return hasOnlyAllowedFields(['id', 'userId', 'amount', 'bankDetails', 'status', 'createdAt']) &&
+             (!('id' in data) || data.id is string) &&
              data.userId is string &&
              data.amount is number && data.amount >= 1000 &&
-             data.bankCode is string &&
-             data.accountNumber is string &&
-             data.status in ['processing', 'completed', 'failed'] &&
+             data.bankDetails is map &&
+             data.bankDetails.accountNumber is string &&
+             data.bankDetails.bankName is string &&
+             data.bankDetails.accountName is string &&
+             data.status in ['pending', 'completed', 'failed'] &&
              isValidDateString(data.createdAt);
     }
 
