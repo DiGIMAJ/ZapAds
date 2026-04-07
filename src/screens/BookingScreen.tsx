@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { doc, getDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useUser } from '../App';
 import { ChevronLeft, ShieldCheck, Info, Upload } from 'lucide-react';
 import { formatCurrency } from '../lib/utils';
 import { usePaystackPayment } from 'react-paystack';
+import { handleFirestoreError, OperationType } from '../lib/firebaseUtils';
 
 export const BookingScreen = () => {
   const { publisherId } = useParams();
@@ -70,37 +71,56 @@ export const BookingScreen = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reference: reference.reference }),
       });
+
+      if (!verifyRes.ok) {
+        const errorText = await verifyRes.text();
+        console.error(`Verification failed with status ${verifyRes.status}:`, errorText);
+        alert(`Payment verification failed (Status ${verifyRes.status}). Please contact support.`);
+        return;
+      }
+
       const verifyData = await verifyRes.json();
 
       if (verifyData.status && verifyData.data.status === 'success') {
         const adRef = doc(collection(db, 'ads'));
         const adData = {
           id: adRef.id,
-          advertiserId: profile?.uid,
-          publisherId: publisher.uid,
+          advertiserId: profile?.uid || '',
+          publisherId: publisher.uid || '',
           mediaUrl: mediaUrl || 'https://picsum.photos/seed/ad/800/600',
-          caption,
-          niche: publisher.niches[0],
-          budget: publisher.pricePerPost,
-          platformFee: Math.round(publisher.pricePerPost * 0.10), // 10% internal fee
-          publisherEarnings: Math.round(publisher.pricePerPost * 0.90),
+          caption: caption || 'No caption provided',
+          niche: (publisher.niches && publisher.niches[0]) || 'General',
+          budget: Number(publisher.pricePerPost) || 0,
+          platformFee: Math.round((Number(publisher.pricePerPost) || 0) * 0.10),
+          publisherEarnings: Math.round((Number(publisher.pricePerPost) || 0) * 0.90),
           status: 'paid',
           paymentReference: reference.reference,
           createdAt: new Date().toISOString(),
-          scheduledAt: scheduledAt || new Date().toISOString(),
+          scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : new Date().toISOString(),
         };
-        await setDoc(adRef, adData);
+        
+        try {
+          await setDoc(adRef, adData);
+        } catch (error) {
+          handleFirestoreError(error, OperationType.CREATE, `ads/${adRef.id}`);
+        }
         
         // Create notification for publisher
         const notifRef = doc(collection(db, 'notifications'));
-        await setDoc(notifRef, {
+        const notifData = {
           id: notifRef.id,
-          userId: publisher.uid,
+          userId: publisher.uid || '',
           type: 'ad_request',
-          message: `${profile?.name} has paid for an ad on your TV!`,
+          message: `${profile?.name || 'An advertiser'} has paid for an ad on your TV!`,
           isRead: false,
           createdAt: new Date().toISOString(),
-        });
+        };
+
+        try {
+          await setDoc(notifRef, notifData);
+        } catch (error) {
+          handleFirestoreError(error, OperationType.CREATE, `notifications/${notifRef.id}`);
+        }
 
         alert('Payment successful and ad booked!');
         navigate('/campaigns');

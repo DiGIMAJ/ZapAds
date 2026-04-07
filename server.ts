@@ -1,5 +1,4 @@
 import express from "express";
-import { createServer as createViteServer } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
 import dotenv from "dotenv";
@@ -99,17 +98,16 @@ app.post("/api/paystack/withdraw", async (req, res) => {
 // Vite middleware for development
 async function setupVite() {
   if (process.env.NODE_ENV !== "production" && !process.env.VERCEL) {
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
-    });
+    // In production on Vercel, we don't serve static files from Express
+    // Vercel handles static files via the "dist" directory and vercel.json routes
+    app.get("/api/test", (req, res) => res.json({ message: "API is working" }));
   }
 }
 
